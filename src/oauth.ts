@@ -46,7 +46,11 @@ export function oauthHandlers(config: Config, store: TokenStore) {
     async callback(req: Request, res: Response): Promise<void> {
       const code = typeof req.query.code === "string" ? req.query.code : "";
       const state = typeof req.query.state === "string" ? req.query.state : "";
-      if (!code || !verifyState(state, config)) { res.status(400).json({ error: "Invalid OAuth callback" }); return; }
+      if (!code || !verifyState(state, config)) {
+        console.error("OAuth callback rejected", { hasCode: Boolean(code), hasState: Boolean(state), stateValid: state ? verifyState(state, config) : false, queryKeys: Object.keys(req.query) });
+        res.status(400).json({ error: "Invalid OAuth callback" });
+        return;
+      }
       try {
         const tokens = await exchangeCode(code, config);
         if (!tokens.hubId) { res.status(502).json({ error: "HubSpot did not return a portal ID" }); return; }
