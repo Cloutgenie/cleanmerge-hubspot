@@ -10,7 +10,8 @@
     "start": "node dist/src/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "register:action": "tsx scripts/register-action.ts"
+    "register:action": "tsx scripts/register-action.ts",
+    "dedup:scan": "tsx scripts/run-dedup-scan.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

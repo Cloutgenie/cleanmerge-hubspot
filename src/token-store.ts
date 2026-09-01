@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { Pool } from "pg";
+import type { Pool } from "pg";
+import { createPool } from "./db.js";
 import type { OAuthTokens } from "./types.js";
 
 export interface TokenStore {
@@ -30,8 +31,7 @@ function decrypt(value: string, secret: string): OAuthTokens {
 export class PostgresTokenStore implements TokenStore {
   private readonly pool: Pool;
   constructor(databaseUrl: string, private readonly encryptionKey: string) {
-    const isUnencryptedInternal = databaseUrl.includes("localhost") || databaseUrl.includes(".railway.internal");
-    this.pool = new Pool({ connectionString: databaseUrl, ssl: isUnencryptedInternal ? false : { rejectUnauthorized: false } });
+    this.pool = createPool(databaseUrl);
   }
   async initialize(): Promise<void> {
     await this.pool.query(`CREATE TABLE IF NOT EXISTS hubspot_oauth_tokens (
