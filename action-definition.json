@@ -1,0 +1,57 @@
+{
+  "actionUrl": "https://your-cleanmerge-app.example.com/api/hubspot/action",
+  "requiresObject": true,
+  "objectTypes": ["CONTACT", "COMPANY", "DEAL", "TICKET"],
+  "inputFields": [
+    {
+      "isRequired": true,
+      "supportedValueTypes": ["STATIC_VALUE", "OBJECT_PROPERTY"],
+      "typeDefinition": {
+        "name": "inputText",
+        "type": "string",
+        "fieldType": "text"
+      }
+    },
+    {
+      "isRequired": true,
+      "supportedValueTypes": ["STATIC_VALUE"],
+      "typeDefinition": {
+        "name": "transformationType",
+        "type": "enumeration",
+        "fieldType": "select",
+        "options": [
+          { "label": "Proper Case", "value": "Proper_Case", "displayOrder": 0 },
+          { "label": "Uppercase", "value": "Uppercase", "displayOrder": 1 },
+          { "label": "Lowercase", "value": "Lowercase", "displayOrder": 2 },
+          { "label": "Extract Domain", "value": "Extract_Domain", "displayOrder": 3 },
+          { "label": "Format Phone (E.164)", "value": "Format_Phone_E164", "displayOrder": 4 },
+          { "label": "Split First Name", "value": "Split_First_Name", "displayOrder": 5 },
+          { "label": "Split Last Name", "value": "Split_Last_Name", "displayOrder": 6 }
+        ]
+      }
+    }
+  ],
+  "outputFields": [
+    { "typeDefinition": { "name": "outputText", "type": "string", "fieldType": "text" } },
+    { "typeDefinition": { "name": "status", "type": "string", "fieldType": "text" } }
+  ],
+  "labels": {
+    "en": {
+      "actionName": "CleanMerge: Normalize CRM Data",
+      "actionDescription": "Normalize names, text, domains, and phone numbers.",
+      "actionCardContent": "Transform {{inputText}} with {{transformationType}}",
+      "inputFieldLabels": {
+        "inputText": "Input text",
+        "transformationType": "Transformation"
+      },
+      "inputFieldDescriptions": {
+        "inputText": "Choose a CRM property or enter static text.",
+        "transformationType": "Select how CleanMerge should normalize the value."
+      },
+      "outputFieldLabels": {
+        "outputText": "Normalized text",
+        "status": "Status"
+      }
+    }
+  }
+}
