@@ -10,6 +10,7 @@ const schema = z.object({
   HUBSPOT_SCOPES: z.string().default("automation"),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
   DATABASE_URL: z.string().url().optional(),
+  INTERNAL_ADMIN_TOKEN: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;
