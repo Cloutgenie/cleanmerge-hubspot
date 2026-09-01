@@ -30,7 +30,8 @@ function decrypt(value: string, secret: string): OAuthTokens {
 export class PostgresTokenStore implements TokenStore {
   private readonly pool: Pool;
   constructor(databaseUrl: string, private readonly encryptionKey: string) {
-    this.pool = new Pool({ connectionString: databaseUrl, ssl: databaseUrl.includes("localhost") ? false : { rejectUnauthorized: false } });
+    const isUnencryptedInternal = databaseUrl.includes("localhost") || databaseUrl.includes(".railway.internal");
+    this.pool = new Pool({ connectionString: databaseUrl, ssl: isUnencryptedInternal ? false : { rejectUnauthorized: false } });
   }
   async initialize(): Promise<void> {
     await this.pool.query(`CREATE TABLE IF NOT EXISTS hubspot_oauth_tokens (
