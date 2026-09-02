@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
-import { archiveObject } from "./dedup/hubspot-client.js";
+import { archiveObject, listAllObjects } from "./dedup/hubspot-client.js";
 import { executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
@@ -193,13 +193,34 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       }
     });
 
-    // TEMPORARY — cleans up the surviving test contact from the live merge-executor validation. Remove after use.
+    // TEMPORARY — final cleanup verification for the live merge-executor test. Remove after use.
+    app.get("/internal/dedup/list-companies-tmp", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        const companies = await listAllObjects(accessToken, "companies", ["name", "domain", "createdate"]);
+        res.status(200).json({ companies });
+      } catch (error) {
+        console.error("List companies failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List companies failed" });
+      }
+    });
+
     app.post("/internal/dedup/archive-test-record", async (req, res) => {
       if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
       const portalId = Number(req.body?.portalId);
+      const objectType = req.body?.objectType === "companies" ? "companies" : "contacts";
       const id = req.body?.id;
       if (!Number.isInteger(portalId) || portalId <= 0 || typeof id !== "string" || !id) {
         res.status(400).json({ error: "portalId and id are required" });
@@ -207,7 +228,7 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       }
       try {
         const accessToken = await dedup.tokenManager.getAccessToken(portalId);
-        await archiveObject(accessToken, "contacts", id);
+        await archiveObject(accessToken, objectType, id);
         res.status(200).json({ archived: id });
       } catch (error) {
         console.error("Archive test record failed", error instanceof Error ? error.message : error);
