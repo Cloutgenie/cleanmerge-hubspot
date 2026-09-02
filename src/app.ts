@@ -62,6 +62,28 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   });
 
   if (dedup) {
+    app.get("/internal/dedup/portal-info", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        const response = await fetch("https://api.hubapi.com/account-info/v3/details", { headers: { authorization: `Bearer ${accessToken}` } });
+        if (!response.ok) throw new Error(`HubSpot account-info failed (${response.status})`);
+        const details = (await response.json()) as { portalId: number; accountType?: string; timeZone?: string; companyName?: string; uiDomain?: string };
+        res.status(200).json({ portalId: details.portalId, companyName: details.companyName, uiDomain: details.uiDomain, accountType: details.accountType });
+      } catch (error) {
+        console.error("Portal info lookup failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Portal info lookup failed" });
+      }
+    });
+
     app.post("/internal/dedup/scan", async (req, res) => {
       if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
         res.status(401).json({ error: "Unauthorized" });
