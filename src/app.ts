@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { z } from "zod";
 import type { Config } from "./config.js";
 import { runDedupScan } from "./dedup/engine.js";
+import { listAllObjects } from "./dedup/hubspot-client.js";
 import { cleanupDedupTestData, seedDedupTestData } from "./dedup/seed.js";
 import type { DedupStore } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
@@ -102,6 +103,26 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Dedup test-data seed failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Dedup test-data seed failed" });
+      }
+    });
+
+    app.get("/internal/dedup/list-companies", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        const companies = await listAllObjects(accessToken, "companies", ["name", "domain", "createdate", "hs_object_source"]);
+        res.status(200).json({ companies });
+      } catch (error) {
+        console.error("List companies failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List companies failed" });
       }
     });
 
