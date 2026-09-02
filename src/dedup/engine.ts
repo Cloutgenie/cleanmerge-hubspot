@@ -78,7 +78,7 @@ async function scanObjectType<T>(
         if (result.tier === "discard") { discarded++; continue; }
         if (result.tier === "high") high++; else ambiguous++;
 
-        await store.upsertCandidate({ portalId, objectType, recordAId: aId, recordBId: bId, score: result.score, tier: result.tier, breakdown: result.breakdown });
+        await store.upsertCandidate({ portalId, objectType, recordAId: aId, recordBId: bId, score: result.score, tier: result.tier, breakdown: result.breakdown, propertiesA: a.properties, propertiesB: b.properties });
 
         const candidate: CandidateDetail = { recordAId: aId, recordBId: bId, result, propertiesA: a.properties, propertiesB: b.properties };
         if (result.tier === "ambiguous" && judge) {

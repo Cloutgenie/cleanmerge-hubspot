@@ -5,7 +5,8 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
-import type { DedupStore } from "./dedup/store.js";
+import { renderReviewPage } from "./dedup/review-ui.js";
+import type { DedupStore, ReviewDecision } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
 import type { OAuthTokenManager } from "./token-manager.js";
@@ -80,6 +81,58 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Dedup scan failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Dedup scan failed" });
+      }
+    });
+
+    app.get("/internal/dedup/review-ui", (_req, res) => {
+      res.status(200).type("html").send(renderReviewPage());
+    });
+
+    app.get("/internal/dedup/review-candidates", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const candidates = await dedup.dedupStore.listPendingReview(portalId);
+        res.status(200).json({ candidates });
+      } catch (error) {
+        console.error("List review candidates failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List review candidates failed" });
+      }
+    });
+
+    app.post("/internal/dedup/review-decide", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.body?.portalId);
+      const objectType = req.body?.objectType;
+      const recordAId = req.body?.recordAId;
+      const recordBId = req.body?.recordBId;
+      const decision: ReviewDecision = req.body?.decision;
+      if (
+        !Number.isInteger(portalId) || portalId <= 0 ||
+        (objectType !== "COMPANY" && objectType !== "CONTACT") ||
+        typeof recordAId !== "string" || !recordAId ||
+        typeof recordBId !== "string" || !recordBId ||
+        (decision !== "approved" && decision !== "rejected")
+      ) {
+        res.status(400).json({ error: "portalId, objectType ('COMPANY' | 'CONTACT'), recordAId, recordBId, and decision ('approved' | 'rejected') are required" });
+        return;
+      }
+      try {
+        await dedup.dedupStore.recordDecision(portalId, objectType, recordAId, recordBId, decision);
+        res.status(200).json({ recorded: decision });
+      } catch (error) {
+        console.error("Record review decision failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Record review decision failed" });
       }
     });
   }
