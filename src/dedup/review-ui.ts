@@ -75,9 +75,11 @@ export function renderReviewPage(): string {
   .candidate {
     background: var(--panel);
     border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-strong);
     border-radius: 10px;
     padding: 1.25rem;
     margin-bottom: 1rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   }
   .records { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0.75rem 0; }
   .record {
@@ -98,12 +100,30 @@ export function renderReviewPage(): string {
     line-height: 1.4;
   }
   .rationale strong { color: var(--accent); }
-  .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-  .actions button { padding: 0.5rem 1.1rem; background: transparent; font-size: 0.85rem; }
-  .approve { color: var(--approve); border-color: rgba(111, 211, 161, 0.4) !important; }
-  .approve:hover { background: rgba(111, 211, 161, 0.12); }
-  .reject { color: var(--reject); border-color: rgba(243, 139, 139, 0.4) !important; }
-  .reject:hover { background: rgba(243, 139, 139, 0.12); }
+  .actions { display: flex; gap: 0.6rem; margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+  .actions button {
+    padding: 0.55rem 1.3rem;
+    font-size: 0.85rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .actions button:active { transform: scale(0.96); }
+  .approve {
+    background: var(--approve);
+    color: #04180e;
+    border: none;
+    font-weight: 600;
+  }
+  .approve:hover { background: #86e0b6; box-shadow: 0 0 0 4px rgba(111, 211, 161, 0.18); }
+  .reject {
+    background: transparent;
+    color: var(--reject);
+    border-color: rgba(243, 139, 139, 0.35) !important;
+  }
+  .reject:hover { background: rgba(243, 139, 139, 0.1); border-color: var(--reject) !important; }
   #empty { color: var(--text-muted); }
 </style>
 </head>
@@ -160,8 +180,8 @@ async function load() {
           ' (confidence ' + (c.aiConfidence ?? 0).toFixed(2) + ')<br>' + c.aiRationale + '</div>'
         : '<div class="meta">No AI verdict recorded.</div>') +
       '<div class="actions">' +
-        '<button class="approve">Approve (same entity)</button>' +
-        '<button class="reject">Reject (different)</button>' +
+        '<button class="approve">&#10003; Approve</button>' +
+        '<button class="reject">&#10005; Reject</button>' +
       '</div>';
     el.querySelector(".approve").addEventListener("click", () => decide(c, "approved", el));
     el.querySelector(".reject").addEventListener("click", () => decide(c, "rejected", el));
