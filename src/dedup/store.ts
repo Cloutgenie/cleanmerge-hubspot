@@ -117,6 +117,11 @@ export class DedupStore {
     );
   }
 
+  async clearCandidates(portalId: number): Promise<number> {
+    const result = await this.pool.query(`DELETE FROM dedup_candidates WHERE portal_id = $1`, [portalId]);
+    return result.rowCount ?? 0;
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }

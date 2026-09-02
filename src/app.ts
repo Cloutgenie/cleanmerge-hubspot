@@ -139,6 +139,25 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
         res.status(502).json({ error: "Record review decision failed" });
       }
     });
+
+    app.post("/internal/dedup/clear-candidates", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.body?.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const cleared = await dedup.dedupStore.clearCandidates(portalId);
+        res.status(200).json({ cleared });
+      } catch (error) {
+        console.error("Clear candidates failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Clear candidates failed" });
+      }
+    });
   }
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));

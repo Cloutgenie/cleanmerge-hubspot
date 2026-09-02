@@ -56,6 +56,7 @@ export function renderReviewScript(): string {
 }
 
 function label(objectType, props) {
+  if (!props) return "(record data unavailable)";
   if (objectType === "COMPANY") return (props.name || "(no name)") + " <" + (props.domain || "no domain") + ">";
   return (props.firstname || "") + " " + (props.lastname || "") + " <" + (props.email || "no email") + ">";
 }
