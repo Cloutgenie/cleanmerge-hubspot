@@ -112,6 +112,9 @@ export async function executeMerge(
   }
 
   const merged = await mergeObjects(accessToken, hubspotType, winnerId, loserId);
+  // HubSpot's contact merge can return a survivor id that differs from both inputs (internal
+  // canonical-id resolution) — company merges have not shown this, but log the actual returned
+  // id either way rather than assuming the requested primaryObjectId is what actually survived.
 
   await store.recordMerge({
     portalId,
@@ -119,7 +122,12 @@ export async function executeMerge(
     winnerId,
     loserId,
     triggeredBy,
-    fieldSnapshot: { before: { [recordA.id]: recordA.properties, [recordB.id]: recordB.properties }, normalizedWinnerFields: normalized },
+    fieldSnapshot: {
+      before: { [recordA.id]: recordA.properties, [recordB.id]: recordB.properties },
+      normalizedWinnerFields: normalized,
+      requestedPrimaryObjectId: winnerId,
+      actualSurvivorId: merged.id,
+    },
   });
   await store.markMerged(portalId, objectType, recordAId, recordBId);
 

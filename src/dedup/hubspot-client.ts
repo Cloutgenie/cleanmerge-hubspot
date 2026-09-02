@@ -8,20 +8,6 @@ interface CrmListResponse {
   paging?: { next?: { after: string } };
 }
 
-export async function createObject(
-  accessToken: string,
-  objectType: "companies" | "contacts",
-  properties: Record<string, string>,
-): Promise<CrmRecord> {
-  const response = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-    body: JSON.stringify({ properties }),
-  });
-  if (!response.ok) throw new Error(`HubSpot create ${objectType} failed (${response.status}): ${await response.text()}`);
-  return (await response.json()) as CrmRecord;
-}
-
 export async function getObject(
   accessToken: string,
   objectType: "companies" | "contacts",

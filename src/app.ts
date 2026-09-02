@@ -5,7 +5,6 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
-import { createObject } from "./dedup/hubspot-client.js";
 import { executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
@@ -190,28 +189,6 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Execute merges failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Execute merges failed" });
-      }
-    });
-
-    // TEMPORARY — for live-testing the merge executor end-to-end. Remove after verification.
-    app.post("/internal/dedup/seed-merge-test", async (req, res) => {
-      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
-        res.status(401).json({ error: "Unauthorized" });
-        return;
-      }
-      const portalId = Number(req.body?.portalId);
-      if (!Number.isInteger(portalId) || portalId <= 0) {
-        res.status(400).json({ error: "portalId must be a positive integer" });
-        return;
-      }
-      try {
-        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
-        const a = await createObject(accessToken, "contacts", { firstname: "TESTPERSON", lastname: "MergeCheck [CLEANMERGE-TEST]", email: "mergecheck.a.cleanmerge.test@example.com", phone: "(312) 555-0199" });
-        const b = await createObject(accessToken, "contacts", { firstname: "Test", lastname: "Mergecheck [CLEANMERGE-TEST]", email: "mergecheck.b.cleanmerge.test@example.com", phone: "312-555-0199" });
-        res.status(200).json({ a, b });
-      } catch (error) {
-        console.error("Seed merge test failed", error instanceof Error ? error.message : error);
-        res.status(502).json({ error: "Seed merge test failed" });
       }
     });
   }
