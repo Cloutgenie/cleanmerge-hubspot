@@ -1,8 +1,9 @@
-import type { OAuthTokenManager } from "../token-manager.js";
+import type { JudgmentResult } from "./ai-judgment.js";
 import { computeCompanyBlockingKeys, computeContactBlockingKeys, type CompanyProperties, type ContactProperties } from "./blocking.js";
 import { type CrmRecord, listAllObjects } from "./hubspot-client.js";
 import { scoreCompanyPair, scoreContactPair, type ScoreResult } from "./scoring.js";
 import type { DedupStore } from "./store.js";
+import type { OAuthTokenManager } from "../token-manager.js";
 
 export interface CandidateDetail {
   recordAId: string;
@@ -10,6 +11,7 @@ export interface CandidateDetail {
   result: ScoreResult;
   propertiesA: Record<string, string | null>;
   propertiesB: Record<string, string | null>;
+  judgment?: JudgmentResult;
 }
 
 export interface DedupScanSummary {
@@ -21,6 +23,13 @@ export interface DedupScanSummary {
   discarded: number;
   topCandidates: CandidateDetail[];
 }
+
+export type AiJudge = (
+  objectType: "COMPANY" | "CONTACT",
+  propertiesA: Record<string, string | null>,
+  propertiesB: Record<string, string | null>,
+  scoreBreakdown: Record<string, number>,
+) => Promise<JudgmentResult>;
 
 /** Groups record ids by every blocking key they produce, so only records sharing a key are ever pairwise-compared. */
 function buildBuckets<T>(records: CrmRecord[], computeKeys: (props: T) => { keyType: string; keyValue: string }[]): Map<string, Set<string>> {
@@ -42,6 +51,7 @@ async function scanObjectType<T>(
   computeKeys: (props: T) => { keyType: string; keyValue: string }[],
   scorePair: (a: T, b: T) => ScoreResult,
   store: DedupStore,
+  judge: AiJudge | undefined,
 ): Promise<DedupScanSummary> {
   const byId = new Map(records.map((r) => [r.id, r]));
   const buckets = buildBuckets(records, computeKeys);
@@ -69,7 +79,17 @@ async function scanObjectType<T>(
         if (result.tier === "high") high++; else ambiguous++;
 
         await store.upsertCandidate({ portalId, objectType, recordAId: aId, recordBId: bId, score: result.score, tier: result.tier, breakdown: result.breakdown });
-        topCandidates.push({ recordAId: aId, recordBId: bId, result, propertiesA: a.properties, propertiesB: b.properties });
+
+        const candidate: CandidateDetail = { recordAId: aId, recordBId: bId, result, propertiesA: a.properties, propertiesB: b.properties };
+        if (result.tier === "ambiguous" && judge) {
+          try {
+            candidate.judgment = await judge(objectType, a.properties, b.properties, result.breakdown);
+            await store.recordJudgment(portalId, objectType, aId, bId, candidate.judgment);
+          } catch (error) {
+            console.error("AI judgment failed for candidate", { objectType, aId, bId, error: error instanceof Error ? error.message : error });
+          }
+        }
+        topCandidates.push(candidate);
       }
     }
   }
@@ -86,14 +106,14 @@ async function scanObjectType<T>(
   };
 }
 
-export async function runDedupScan(portalId: number, tokenManager: OAuthTokenManager, store: DedupStore): Promise<DedupScanSummary[]> {
+export async function runDedupScan(portalId: number, tokenManager: OAuthTokenManager, store: DedupStore, judge?: AiJudge): Promise<DedupScanSummary[]> {
   const accessToken = await tokenManager.getAccessToken(portalId);
 
   const companies = await listAllObjects(accessToken, "companies", ["name", "domain", "phone"]);
   const contacts = await listAllObjects(accessToken, "contacts", ["firstname", "lastname", "email", "phone"]);
 
   return [
-    await scanObjectType<CompanyProperties>(portalId, "COMPANY", companies, computeCompanyBlockingKeys, scoreCompanyPair, store),
-    await scanObjectType<ContactProperties>(portalId, "CONTACT", contacts, computeContactBlockingKeys, scoreContactPair, store),
+    await scanObjectType<CompanyProperties>(portalId, "COMPANY", companies, computeCompanyBlockingKeys, scoreCompanyPair, store, judge),
+    await scanObjectType<ContactProperties>(portalId, "CONTACT", contacts, computeContactBlockingKeys, scoreContactPair, store, judge),
   ];
 }

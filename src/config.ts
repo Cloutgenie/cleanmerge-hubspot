@@ -11,6 +11,7 @@ const schema = z.object({
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
   DATABASE_URL: z.string().url().optional(),
   INTERNAL_ADMIN_TOKEN: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -3,6 +3,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import helmet from "helmet";
 import { z } from "zod";
 import type { Config } from "./config.js";
+import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
 import type { DedupStore } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
@@ -15,6 +16,7 @@ import { transformationTypes } from "./types.js";
 export interface DedupDeps {
   tokenManager: OAuthTokenManager;
   dedupStore: DedupStore;
+  judge?: AiJudge;
 }
 
 function isAuthorizedAdmin(req: Request, adminToken: string | undefined): boolean {
@@ -73,7 +75,7 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
         return;
       }
       try {
-        const summaries = await runDedupScan(portalId, dedup.tokenManager, dedup.dedupStore);
+        const summaries = await runDedupScan(portalId, dedup.tokenManager, dedup.dedupStore, dedup.judge);
         res.status(200).json({ summaries });
       } catch (error) {
         console.error("Dedup scan failed", error instanceof Error ? error.message : error);

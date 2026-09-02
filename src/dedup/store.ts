@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { createPool } from "../db.js";
+import type { JudgmentResult } from "./ai-judgment.js";
 import type { DedupTier } from "./scoring.js";
 
 export interface DedupCandidateRow {
@@ -34,6 +35,11 @@ export class DedupStore {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (portal_id, object_type, record_a_id, record_b_id)
     )`);
+    await this.pool.query(`ALTER TABLE dedup_candidates
+      ADD COLUMN IF NOT EXISTS ai_same_entity BOOLEAN,
+      ADD COLUMN IF NOT EXISTS ai_confidence REAL,
+      ADD COLUMN IF NOT EXISTS ai_rationale TEXT,
+      ADD COLUMN IF NOT EXISTS ai_judged_at TIMESTAMPTZ`);
   }
 
   async upsertCandidate(row: DedupCandidateRow): Promise<void> {
@@ -44,6 +50,15 @@ export class DedupStore {
        ON CONFLICT (portal_id, object_type, record_a_id, record_b_id)
        DO UPDATE SET score = EXCLUDED.score, tier = EXCLUDED.tier, breakdown = EXCLUDED.breakdown, updated_at = NOW()`,
       [row.portalId, row.objectType, recordAId, recordBId, row.score, row.tier, JSON.stringify(row.breakdown)],
+    );
+  }
+
+  async recordJudgment(portalId: number, objectType: "COMPANY" | "CONTACT", recordAId: string, recordBId: string, judgment: JudgmentResult): Promise<void> {
+    const [a, b] = [recordAId, recordBId].sort();
+    await this.pool.query(
+      `UPDATE dedup_candidates SET ai_same_entity = $5, ai_confidence = $6, ai_rationale = $7, ai_judged_at = NOW(), updated_at = NOW()
+       WHERE portal_id = $1 AND object_type = $2 AND record_a_id = $3 AND record_b_id = $4`,
+      [portalId, objectType, a, b, judgment.sameEntity, judgment.confidence, judgment.rationale],
     );
   }
 
