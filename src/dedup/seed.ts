@@ -1,4 +1,6 @@
-import { createObject, type CrmRecord } from "./hubspot-client.js";
+import { archiveObject, createObject, listAllObjects, type CrmRecord } from "./hubspot-client.js";
+
+const TEST_MARKER = "[CLEANMERGE-TEST]";
 
 const TEST_COMPANIES: Record<string, string>[] = [
   { name: "Acme Corporation [CLEANMERGE-TEST]", domain: "acme-cleanmerge-test.com", phone: "312-555-0101" },
@@ -29,4 +31,32 @@ export async function seedDedupTestData(accessToken: string): Promise<SeedResult
   for (const properties of TEST_CONTACTS) contacts.push(await createObject(accessToken, "contacts", properties));
 
   return { companies, contacts };
+}
+
+export interface CleanupResult {
+  companiesArchived: string[];
+  contactsArchived: string[];
+}
+
+/** Finds and archives every company/contact this seeder tagged with TEST_MARKER, regardless of how many times seeding has been run. */
+export async function cleanupDedupTestData(accessToken: string): Promise<CleanupResult> {
+  const companies = await listAllObjects(accessToken, "companies", ["name"]);
+  const companiesArchived: string[] = [];
+  for (const company of companies) {
+    if (company.properties.name?.includes(TEST_MARKER)) {
+      await archiveObject(accessToken, "companies", company.id);
+      companiesArchived.push(company.id);
+    }
+  }
+
+  const contacts = await listAllObjects(accessToken, "contacts", ["lastname"]);
+  const contactsArchived: string[] = [];
+  for (const contact of contacts) {
+    if (contact.properties.lastname?.includes(TEST_MARKER)) {
+      await archiveObject(accessToken, "contacts", contact.id);
+      contactsArchived.push(contact.id);
+    }
+  }
+
+  return { companiesArchived, contactsArchived };
 }

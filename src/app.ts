@@ -4,7 +4,7 @@ import helmet from "helmet";
 import { z } from "zod";
 import type { Config } from "./config.js";
 import { runDedupScan } from "./dedup/engine.js";
-import { seedDedupTestData } from "./dedup/seed.js";
+import { cleanupDedupTestData, seedDedupTestData } from "./dedup/seed.js";
 import type { DedupStore } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
@@ -102,6 +102,26 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Dedup test-data seed failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Dedup test-data seed failed" });
+      }
+    });
+
+    app.post("/internal/dedup/cleanup-test-data", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.body?.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        const result = await cleanupDedupTestData(accessToken);
+        res.status(200).json(result);
+      } catch (error) {
+        console.error("Dedup test-data cleanup failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Dedup test-data cleanup failed" });
       }
     });
 
