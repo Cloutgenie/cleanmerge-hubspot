@@ -13,23 +13,98 @@ export function renderReviewPage(): string {
 <head>
 <meta charset="utf-8">
 <title>CleanMerge Review Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600&family=Space+Grotesk:wght@300;500&display=swap" rel="stylesheet">
 <style>
-  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
-  h1 { font-size: 1.25rem; }
-  .controls { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-  .controls input { flex: 1; padding: 0.4rem; }
-  .controls button { padding: 0.4rem 1rem; }
-  .candidate { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-  .records { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 0.5rem 0; }
-  .record { background: #f7f7f7; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
-  .record div { margin: 0.15rem 0; }
-  .meta { font-size: 0.8rem; color: #555; margin: 0.5rem 0; }
-  .rationale { font-size: 0.85rem; background: #fff8e1; border-radius: 6px; padding: 0.5rem 0.75rem; margin: 0.5rem 0; }
-  .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-  .actions button { padding: 0.4rem 1rem; cursor: pointer; }
-  .approve { background: #d1f7d6; border: 1px solid #4caf50; }
-  .reject { background: #fbd7d7; border: 1px solid #e53935; }
-  #empty { color: #777; }
+  :root {
+    --bg: #03090e;
+    --panel: #020e24;
+    --panel-alt: #010b15;
+    --border: rgba(255, 255, 255, 0.16);
+    --text: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.6);
+    --accent: #89bef3;
+    --accent-strong: #5fa7e7;
+    --approve: #6fd3a1;
+    --reject: #f38b8b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Karla", -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1.5rem 3rem;
+  }
+  h1 {
+    font-family: "Space Grotesk", -apple-system, sans-serif;
+    font-weight: 300;
+    font-size: 1.75rem;
+    letter-spacing: 0.01em;
+    margin-bottom: 1.5rem;
+  }
+  .controls { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+  .controls input {
+    flex: 1;
+    padding: 0.55rem 0.75rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+  .controls input::placeholder { color: var(--text-muted); }
+  .controls input:focus { outline: none; border-color: var(--accent); }
+  .controls button, .actions button {
+    font-family: "Space Grotesk", -apple-system, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .controls button {
+    padding: 0.55rem 1.25rem;
+    background: var(--accent);
+    color: #03090e;
+    border: none;
+  }
+  .controls button:hover { background: var(--accent-strong); }
+  .candidate {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .records { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0.75rem 0; }
+  .record {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.85rem;
+  }
+  .meta { font-size: 0.8rem; color: var(--text-muted); margin: 0.5rem 0; }
+  .rationale {
+    font-size: 0.85rem;
+    background: rgba(137, 190, 243, 0.1);
+    border: 1px solid rgba(137, 190, 243, 0.25);
+    border-radius: 6px;
+    padding: 0.6rem 0.85rem;
+    margin: 0.75rem 0;
+    line-height: 1.4;
+  }
+  .rationale strong { color: var(--accent); }
+  .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  .actions button { padding: 0.5rem 1.1rem; background: transparent; font-size: 0.85rem; }
+  .approve { color: var(--approve); border-color: rgba(111, 211, 161, 0.4) !important; }
+  .approve:hover { background: rgba(111, 211, 161, 0.12); }
+  .reject { color: var(--reject); border-color: rgba(243, 139, 139, 0.4) !important; }
+  .reject:hover { background: rgba(243, 139, 139, 0.12); }
+  #empty { color: var(--text-muted); }
 </style>
 </head>
 <body>
