@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
+import { archiveObject } from "./dedup/hubspot-client.js";
 import { executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
@@ -189,6 +190,28 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Execute merges failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Execute merges failed" });
+      }
+    });
+
+    // TEMPORARY — cleans up the surviving test contact from the live merge-executor validation. Remove after use.
+    app.post("/internal/dedup/archive-test-record", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.body?.portalId);
+      const id = req.body?.id;
+      if (!Number.isInteger(portalId) || portalId <= 0 || typeof id !== "string" || !id) {
+        res.status(400).json({ error: "portalId and id are required" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        await archiveObject(accessToken, "contacts", id);
+        res.status(200).json({ archived: id });
+      } catch (error) {
+        console.error("Archive test record failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Archive test record failed" });
       }
     });
   }
