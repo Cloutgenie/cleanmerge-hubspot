@@ -17,6 +17,21 @@ export interface DedupCandidateRow {
 
 export type ReviewDecision = "approved" | "rejected";
 
+export interface MergeCandidate {
+  objectType: "COMPANY" | "CONTACT";
+  recordAId: string;
+  recordBId: string;
+}
+
+export interface MergeLogRow {
+  portalId: number;
+  objectType: "COMPANY" | "CONTACT";
+  winnerId: string;
+  loserId: string;
+  triggeredBy: string;
+  fieldSnapshot: unknown;
+}
+
 export interface ReviewCandidateRow {
   objectType: "COMPANY" | "CONTACT";
   recordAId: string;
@@ -60,6 +75,16 @@ export class DedupStore {
       ADD COLUMN IF NOT EXISTS ai_judged_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS properties_a JSONB,
       ADD COLUMN IF NOT EXISTS properties_b JSONB`);
+    await this.pool.query(`CREATE TABLE IF NOT EXISTS merge_log (
+      id BIGSERIAL PRIMARY KEY,
+      portal_id BIGINT NOT NULL,
+      object_type TEXT NOT NULL,
+      winner_id TEXT NOT NULL,
+      loser_id TEXT NOT NULL,
+      triggered_by TEXT NOT NULL,
+      field_snapshot JSONB NOT NULL,
+      merged_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
   }
 
   async upsertCandidate(row: DedupCandidateRow): Promise<void> {
@@ -114,6 +139,39 @@ export class DedupStore {
       `UPDATE dedup_candidates SET status = $5, updated_at = NOW()
        WHERE portal_id = $1 AND object_type = $2 AND record_a_id = $3 AND record_b_id = $4`,
       [portalId, objectType, a, b, decision],
+    );
+  }
+
+  /** Human-approved pairs (from the review queue) waiting to be merged. */
+  async listApprovedForMerge(portalId: number): Promise<MergeCandidate[]> {
+    const result = await this.pool.query(
+      `SELECT object_type, record_a_id, record_b_id FROM dedup_candidates WHERE portal_id = $1 AND status = 'approved'`,
+      [portalId],
+    );
+    return result.rows.map((r) => ({ objectType: r.object_type, recordAId: r.record_a_id, recordBId: r.record_b_id }));
+  }
+
+  /** High-confidence pairs no human has reviewed — only returned when the caller explicitly opts in to auto-merging them. */
+  async listHighConfidencePending(portalId: number): Promise<MergeCandidate[]> {
+    const result = await this.pool.query(
+      `SELECT object_type, record_a_id, record_b_id FROM dedup_candidates WHERE portal_id = $1 AND tier = 'high' AND status = 'pending'`,
+      [portalId],
+    );
+    return result.rows.map((r) => ({ objectType: r.object_type, recordAId: r.record_a_id, recordBId: r.record_b_id }));
+  }
+
+  async recordMerge(row: MergeLogRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO merge_log (portal_id, object_type, winner_id, loser_id, triggered_by, field_snapshot) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [row.portalId, row.objectType, row.winnerId, row.loserId, row.triggeredBy, JSON.stringify(row.fieldSnapshot)],
+    );
+  }
+
+  async markMerged(portalId: number, objectType: "COMPANY" | "CONTACT", recordAId: string, recordBId: string): Promise<void> {
+    const [a, b] = [recordAId, recordBId].sort();
+    await this.pool.query(
+      `UPDATE dedup_candidates SET status = 'merged', updated_at = NOW() WHERE portal_id = $1 AND object_type = $2 AND record_a_id = $3 AND record_b_id = $4`,
+      [portalId, objectType, a, b],
     );
   }
 

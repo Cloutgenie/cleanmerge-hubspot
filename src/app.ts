@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
+import { executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
@@ -156,6 +157,38 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Clear candidates failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Clear candidates failed" });
+      }
+    });
+
+    app.post("/internal/dedup/execute-merges", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const portalId = Number(req.body?.portalId);
+      const includeHighConfidenceTier = req.body?.includeHighConfidenceTier === true;
+      if (!Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "portalId must be a positive integer" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        const approved = await dedup.dedupStore.listApprovedForMerge(portalId);
+        const approvedResult = await executeMergeBatch(accessToken, portalId, approved, dedup.dedupStore, "human_review");
+
+        let highConfidenceResult: Awaited<ReturnType<typeof executeMergeBatch>> = { succeeded: [], failed: [] };
+        if (includeHighConfidenceTier) {
+          const highConfidence = await dedup.dedupStore.listHighConfidencePending(portalId);
+          highConfidenceResult = await executeMergeBatch(accessToken, portalId, highConfidence, dedup.dedupStore, "auto_high_confidence");
+        }
+
+        res.status(200).json({
+          humanReviewed: approvedResult,
+          highConfidence: includeHighConfidenceTier ? highConfidenceResult : undefined,
+        });
+      } catch (error) {
+        console.error("Execute merges failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Execute merges failed" });
       }
     });
   }
