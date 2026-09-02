@@ -1,0 +1,83 @@
+/**
+ * Reference content for the "Shared Data" section of a HubSpot Marketplace listing.
+ * https://developers.hubspot.com/docs/apps/developer-platform/list-apps/listing-your-app/app-marketplace-listing-requirements
+ * ("All objects selected in your OAuth scopes should be documented... If requesting both read
+ * and write, the sync should be advertised as bi-directional for those objects.")
+ *
+ * This is filled into HubSpot's own listing editor, not linked as an external URL — this page
+ * exists so the content is written once, accurately, and ready to copy in when the listing is
+ * built, rather than reconstructed from memory at that point.
+ */
+export function renderSharedDataGuide(): string {
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CleanMerge Shared Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600&family=Space+Grotesk:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03090e; --panel: #020e24; --panel-alt: #010b15;
+    --border: rgba(255, 255, 255, 0.16); --text: #ffffff; --text-muted: rgba(255, 255, 255, 0.65);
+    --accent: #89bef3; --accent-strong: #5fa7e7; --warn: #f3c86b;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Karla", -apple-system, sans-serif; background: var(--bg); color: var(--text); max-width: 820px; margin: 0 auto; padding: 3rem 1.5rem 5rem; line-height: 1.6; }
+  h1 { font-family: "Space Grotesk", -apple-system, sans-serif; font-weight: 300; font-size: 2.1rem; margin-bottom: 0.5rem; }
+  h2 { font-family: "Space Grotesk", -apple-system, sans-serif; font-weight: 500; font-size: 1.3rem; margin-top: 2.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  .lede { color: var(--text-muted); font-size: 1.02rem; margin-bottom: 2rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+  .badge-read { background: rgba(137, 190, 243, 0.15); color: var(--accent); }
+  .badge-bidirectional { background: rgba(111, 211, 161, 0.15); color: #6fd3a1; }
+  .badge-unused { background: rgba(243, 200, 107, 0.15); color: var(--warn); }
+  code { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.4rem; font-size: 0.88em; }
+  .callout { background: rgba(243, 200, 107, 0.08); border: 1px solid rgba(243, 200, 107, 0.3); border-left: 3px solid var(--warn); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.25rem 0; font-size: 0.92rem; }
+  .callout strong { color: var(--warn); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>Shared Data — CleanMerge</h1>
+<p class="lede">Reference content for the "Shared Data" section of the HubSpot Marketplace listing — describes exactly how CleanMerge's requested OAuth scopes are currently used. This is written to be accurate as of today's build, not aspirational.</p>
+
+<div class="callout">
+<strong>Known scope/usage mismatch:</strong> CleanMerge's OAuth scopes include write access to Companies and Contacts, but as of today, <strong>nothing an installer can trigger uses that write access</strong>. Only the app owner's internal admin tooling (not exposed to installers) currently reads or writes CRM records. HubSpot's listing requirements state extraneous or unused scopes must be removed. Before submitting a listing, either (a) narrow the OAuth scopes to read-only until the review/merge tooling is made self-serve, or (b) make that tooling self-serve first so the write scope has a real, installer-facing use. Documenting it as "in use" without one of those would misrepresent the app to reviewers.
+</div>
+
+<h2>Contacts</h2>
+<table>
+<tr><th>Scope requested</th><td><code>crm.objects.contacts.read</code>, <code>crm.objects.contacts.write</code></td></tr>
+<tr><th>Direction</th><td><span class="badge badge-read">Read only, in practice</span></td></tr>
+<tr><th>Fields</th><td><code>firstname</code>, <code>lastname</code>, <code>email</code>, <code>phone</code></td></tr>
+<tr><th>How it's actually used</th><td>
+  The <strong>CleanMerge: Normalize CRM Data</strong> workflow action does not call HubSpot's CRM API at all — HubSpot's own workflow engine passes the selected property's value into the action and writes the returned value back to whichever property the workflow is configured to update. CleanMerge never reads or writes a Contact record directly for this feature.<br><br>
+  The write scope exists to support duplicate-detection and merge tooling that is built and deployed, but currently reachable only by the app owner via an internal admin endpoint — not by installers.
+</td></tr>
+</table>
+
+<h2>Companies</h2>
+<table>
+<tr><th>Scope requested</th><td><code>crm.objects.companies.read</code>, <code>crm.objects.companies.write</code></td></tr>
+<tr><th>Direction</th><td><span class="badge badge-read">Read only, in practice</span></td></tr>
+<tr><th>Fields</th><td><code>name</code>, <code>domain</code>, <code>phone</code></td></tr>
+<tr><th>How it's actually used</th><td>Same as Contacts above — the workflow action doesn't touch Company records directly; the write scope is reserved for the not-yet-self-serve duplicate-detection tooling.</td></tr>
+</table>
+
+<h2>If/when the write scope becomes installer-facing</h2>
+<p>Once the review queue and merge executor are exposed to installers (not just the app owner), this table should be updated to describe genuine bi-directional sync:</p>
+<table>
+<tr><th>Object</th><th>Direction</th><th>What changes</th></tr>
+<tr><td>Contacts</td><td><span class="badge badge-bidirectional">Bidirectional</span></td><td>Reads Contact fields to detect duplicates; on a user-approved or high-confidence merge, updates the surviving record's <code>firstname</code>/<code>lastname</code>/<code>phone</code> with normalized values and merges the duplicate via HubSpot's Merge API.</td></tr>
+<tr><td>Companies</td><td><span class="badge badge-bidirectional">Bidirectional</span></td><td>Same, for <code>name</code>/<code>domain</code>/<code>phone</code>.</td></tr>
+</table>
+
+</body>
+</html>`;
+}
