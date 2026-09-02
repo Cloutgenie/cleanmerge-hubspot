@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
-import { renderReviewPage } from "./dedup/review-ui.js";
+import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
@@ -86,6 +86,10 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
 
     app.get("/internal/dedup/review-ui", (_req, res) => {
       res.status(200).type("html").send(renderReviewPage());
+    });
+
+    app.get("/internal/dedup/review-ui.js", (_req, res) => {
+      res.status(200).type("application/javascript").send(renderReviewScript());
     });
 
     app.get("/internal/dedup/review-candidates", async (req, res) => {

@@ -2,6 +2,10 @@
  * A minimal server-rendered review queue: no build step, no framework. The page shell carries
  * no data — it prompts for the admin token client-side and uses it as a Bearer credential for
  * the actual data-fetching calls, so nothing is exposed without the token.
+ *
+ * The script is served from a separate same-origin route (not inlined) because the app's default
+ * Content Security Policy (script-src 'self'; script-src-attr 'none') blocks both inline <script>
+ * blocks and inline onclick="" attributes.
  */
 export function renderReviewPage(): string {
   return `<!doctype html>
@@ -33,24 +37,23 @@ export function renderReviewPage(): string {
 <div class="controls">
   <input id="portalId" type="text" placeholder="Portal ID">
   <input id="token" type="password" placeholder="Admin token">
-  <button onclick="load()">Load</button>
+  <button id="loadBtn">Load</button>
 </div>
 <div id="list"></div>
 <p id="empty" style="display:none">No pending ambiguous candidates.</p>
+<script src="/internal/dedup/review-ui.js"></script>
+</body>
+</html>`;
+}
 
-<script>
-function creds() {
+export function renderReviewScript(): string {
+  return `function creds() {
   const token = document.getElementById("token").value || sessionStorage.getItem("cm_token") || "";
   const portalId = document.getElementById("portalId").value || sessionStorage.getItem("cm_portal") || "";
   if (token) sessionStorage.setItem("cm_token", token);
   if (portalId) sessionStorage.setItem("cm_portal", portalId);
   return { token, portalId };
 }
-
-window.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("token").value = sessionStorage.getItem("cm_token") || "";
-  document.getElementById("portalId").value = sessionStorage.getItem("cm_portal") || "";
-});
 
 function label(objectType, props) {
   if (objectType === "COMPANY") return (props.name || "(no name)") + " <" + (props.domain || "no domain") + ">";
@@ -84,8 +87,8 @@ async function load() {
         '<button class="approve">Approve (same entity)</button>' +
         '<button class="reject">Reject (different)</button>' +
       '</div>';
-    el.querySelector(".approve").onclick = () => decide(c, "approved", el);
-    el.querySelector(".reject").onclick = () => decide(c, "rejected", el);
+    el.querySelector(".approve").addEventListener("click", () => decide(c, "approved", el));
+    el.querySelector(".reject").addEventListener("click", () => decide(c, "rejected", el));
     list.appendChild(el);
   }
 }
@@ -100,7 +103,11 @@ async function decide(c, decision, el) {
   if (!res.ok) { alert("Failed to record decision (" + res.status + ")"); return; }
   el.remove();
 }
-</script>
-</body>
-</html>`;
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("token").value = sessionStorage.getItem("cm_token") || "";
+  document.getElementById("portalId").value = sessionStorage.getItem("cm_portal") || "";
+  document.getElementById("loadBtn").addEventListener("click", load);
+});
+`;
 }
