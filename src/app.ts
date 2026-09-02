@@ -10,6 +10,7 @@ import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
+import { renderSetupGuide } from "./setup-guide.js";
 import type { OAuthTokenManager } from "./token-manager.js";
 import type { TokenStore } from "./token-store.js";
 import { transform } from "./transformations.js";
@@ -48,6 +49,10 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   app.get("/oauth/install", oauth.install);
   app.get("/oauth/callback", oauth.callback);
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+
+  app.get("/docs/setup", (_req, res) => {
+    res.status(200).type("html").send(renderSetupGuide(`${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/install`));
+  });
 
   app.post("/api/hubspot/action", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), (req, res) => {
     const parsed = executionSchema.safeParse(req.body);
