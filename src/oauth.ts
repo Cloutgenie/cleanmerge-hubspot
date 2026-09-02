@@ -54,12 +54,6 @@ export function oauthHandlers(config: Config, store: TokenStore) {
       try {
         const tokens = await exchangeCode(code, config);
         if (!tokens.hubId) { res.status(502).json({ error: "HubSpot did not return a portal ID" }); return; }
-        try {
-          const introspection = await fetch(`https://api.hubapi.com/oauth/v1/access-tokens/${tokens.accessToken}`);
-          console.log("OAuth token introspection", await introspection.json());
-        } catch (introspectionError) {
-          console.error("OAuth token introspection failed", introspectionError instanceof Error ? introspectionError.message : introspectionError);
-        }
         await store.set(tokens.hubId, tokens);
         res.status(200).type("html").send("<!doctype html><title>CleanMerge installed</title><h1>CleanMerge is connected.</h1><p>You may close this window.</p>");
       } catch (error) {
