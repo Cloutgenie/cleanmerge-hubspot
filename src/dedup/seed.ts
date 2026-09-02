@@ -7,9 +7,12 @@ const TEST_COMPANIES: Record<string, string>[] = [
 ];
 
 const TEST_CONTACTS: Record<string, string>[] = [
-  { firstname: "Bob", lastname: "Smith [CLEANMERGE-TEST]", email: "bob.smith.cleanmerge.test@example.com", phone: "312-555-0111" },
-  { firstname: "Robert", lastname: "Smith [CLEANMERGE-TEST]", email: "bob.smith.cleanmerge.test@example.com", phone: "312-555-0111" },
-  { firstname: "Alice", lastname: "Jones [CLEANMERGE-TEST]", email: "alice.jones.cleanmerge.test@example.com", phone: "212-555-0122" },
+  // HubSpot enforces unique contact emails at creation, so an exact-email duplicate pair
+  // can't be seeded this way (which also matches reality — that's the realistic case).
+  // Same phone + similar name, different email lands this pair in the "ambiguous" tier.
+  { firstname: "Bob", lastname: "Smith [CLEANMERGE-TEST]", email: "bob.smith.cleanmerge.test2@example.com", phone: "312-555-0111" },
+  { firstname: "Robert", lastname: "Smith [CLEANMERGE-TEST]", email: "r.smith.cleanmerge.test2@example.com", phone: "312-555-0111" },
+  { firstname: "Alice", lastname: "Jones [CLEANMERGE-TEST]", email: "alice.jones.cleanmerge.test2@example.com", phone: "212-555-0122" },
 ];
 
 export interface SeedResult {
