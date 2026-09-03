@@ -5,9 +5,14 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
-import { executeMergeBatch } from "./dedup/merge-executor.js";
+import { executeIngestBatch, executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
+import { runIngest } from "./ingest/engine.js";
+import { DatabricksConnector } from "./ingest/connectors/databricks.js";
+import { PostgresConnector } from "./ingest/connectors/postgres.js";
+import type { WarehouseConnector } from "./ingest/connector.js";
+import type { FieldMappingEntry, IngestStore, ObjectType, WarehouseConnectionRow } from "./ingest/store.js";
 import { oauthHandlers } from "./oauth.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
 import { renderPricing } from "./pricing.js";
@@ -26,6 +31,17 @@ export interface DedupDeps {
   judge?: AiJudge;
 }
 
+export interface IngestDeps {
+  tokenManager: OAuthTokenManager;
+  ingestStore: IngestStore;
+  dedupStore: DedupStore;
+}
+
+function connectorFactory(connection: WarehouseConnectionRow): WarehouseConnector {
+  if (connection.connectorType === "postgres") return new PostgresConnector(connection.credentials);
+  return new DatabricksConnector(connection.config as { serverHostname: string; httpPath: string; catalog?: string; schema?: string }, connection.credentials);
+}
+
 function isAuthorizedAdmin(req: Request, adminToken: string | undefined): boolean {
   if (!adminToken) return false;
   const provided = req.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
@@ -42,7 +58,7 @@ const executionSchema = z.object({
   }),
 }).passthrough();
 
-export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps): Express {
+export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -207,13 +223,146 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
           highConfidenceResult = await executeMergeBatch(accessToken, portalId, highConfidence, dedup.dedupStore, "auto_high_confidence");
         }
 
+        // Ingest-sourced review decisions (approve = update, reject = create) execute the same way,
+        // via the same accessToken, in the same call — they're both "apply pending human decisions."
+        const ingestResolutions = await executeIngestBatch(accessToken, portalId, dedup.dedupStore);
+
         res.status(200).json({
           humanReviewed: approvedResult,
           highConfidence: includeHighConfidenceTier ? highConfidenceResult : undefined,
+          ingestResolutions,
         });
       } catch (error) {
         console.error("Execute merges failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Execute merges failed" });
+      }
+    });
+  }
+
+  if (ingest) {
+    app.post("/internal/ingest/connections", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.body?.portalId);
+      const name = req.body?.name;
+      const connectorType = req.body?.connectorType;
+      const connConfig = req.body?.config;
+      const credentials = req.body?.credentials;
+      if (
+        !Number.isInteger(portalId) || portalId <= 0 ||
+        typeof name !== "string" || !name ||
+        typeof connectorType !== "string" || !connectorType ||
+        typeof connConfig !== "object" || connConfig === null ||
+        typeof credentials !== "string" || !credentials
+      ) {
+        res.status(400).json({ error: "portalId, name, connectorType, config, and credentials are required" });
+        return;
+      }
+      try {
+        const id = await ingest.ingestStore.createConnection(portalId, name, connectorType, connConfig, credentials);
+        res.status(200).json({ id });
+      } catch (error) {
+        console.error("Create warehouse connection failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Create warehouse connection failed" });
+      }
+    });
+
+    app.put("/internal/ingest/connections/:id", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid connection id" }); return; }
+      try {
+        await ingest.ingestStore.updateConnection(id, req.body?.config, req.body?.credentials);
+        res.status(200).json({ updated: true });
+      } catch (error) {
+        console.error("Update warehouse connection failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Update warehouse connection failed" });
+      }
+    });
+
+    app.get("/internal/ingest/connections", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      try {
+        const connections = await ingest.ingestStore.listConnections(portalId);
+        res.status(200).json({ connections });
+      } catch (error) {
+        console.error("List warehouse connections failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List warehouse connections failed" });
+      }
+    });
+
+    app.post("/internal/ingest/mappings", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const connectionId = Number(req.body?.connectionId);
+      const objectType: ObjectType = req.body?.objectType;
+      const sourceQuery = req.body?.sourceQuery;
+      const mappings: FieldMappingEntry[] = req.body?.mappings;
+      const matchKeyColumns: string[] = req.body?.matchKeyColumns;
+      if (
+        !Number.isInteger(connectionId) || connectionId <= 0 ||
+        (objectType !== "COMPANY" && objectType !== "CONTACT") ||
+        typeof sourceQuery !== "string" || !sourceQuery ||
+        !Array.isArray(mappings) || mappings.length === 0 ||
+        !Array.isArray(matchKeyColumns) || matchKeyColumns.length === 0
+      ) {
+        res.status(400).json({ error: "connectionId, objectType, sourceQuery, mappings, and matchKeyColumns are required" });
+        return;
+      }
+      try {
+        await ingest.ingestStore.upsertMapping({
+          connectionId, objectType, sourceQuery, mappings, matchKeyColumns,
+          cronSchedule: typeof req.body?.cronSchedule === "string" ? req.body.cronSchedule : null,
+          enabled: req.body?.enabled !== false,
+        });
+        res.status(200).json({ saved: true });
+      } catch (error) {
+        console.error("Save field mapping failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Save field mapping failed" });
+      }
+    });
+
+    app.get("/internal/ingest/mappings", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const connectionId = Number(req.query.connectionId);
+      if (!Number.isInteger(connectionId) || connectionId <= 0) { res.status(400).json({ error: "connectionId must be a positive integer" }); return; }
+      try {
+        const mappings = await ingest.ingestStore.listMappings(connectionId);
+        res.status(200).json({ mappings });
+      } catch (error) {
+        console.error("List field mappings failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List field mappings failed" });
+      }
+    });
+
+    app.post("/internal/ingest/run", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.body?.portalId);
+      const connectionId = Number(req.body?.connectionId);
+      if (!Number.isInteger(portalId) || portalId <= 0 || !Number.isInteger(connectionId) || connectionId <= 0) {
+        res.status(400).json({ error: "portalId and connectionId must be positive integers" });
+        return;
+      }
+      try {
+        const summaries = await runIngest(portalId, connectionId, ingest.tokenManager, ingest.ingestStore, ingest.dedupStore, connectorFactory, "manual");
+        res.status(200).json({ summaries });
+      } catch (error) {
+        console.error("Ingest run failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Ingest run failed" });
+      }
+    });
+
+    app.get("/internal/ingest/runs", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      const connectionId = req.query.connectionId ? Number(req.query.connectionId) : undefined;
+      try {
+        const runs = await ingest.ingestStore.listRuns(portalId, connectionId);
+        res.status(200).json({ runs });
+      } catch (error) {
+        console.error("List ingest runs failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List ingest runs failed" });
       }
     });
   }

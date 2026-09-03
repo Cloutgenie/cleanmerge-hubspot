@@ -35,6 +35,43 @@ export async function updateObject(
   if (!response.ok) throw new Error(`HubSpot update ${objectType}/${id} failed (${response.status}): ${await response.text()}`);
 }
 
+export async function createObject(
+  accessToken: string,
+  objectType: "companies" | "contacts",
+  properties: Record<string, string>,
+): Promise<CrmRecord> {
+  const response = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ properties }),
+  });
+  if (!response.ok) throw new Error(`HubSpot create ${objectType} failed (${response.status}): ${await response.text()}`);
+  return (await response.json()) as CrmRecord;
+}
+
+/** Creates the custom property if it doesn't already exist; treats a concurrent create (409) as success. */
+export async function ensurePropertyExists(
+  accessToken: string,
+  objectType: "companies" | "contacts",
+  propertyName: string,
+  label: string,
+): Promise<void> {
+  const getResponse = await fetch(`https://api.hubapi.com/crm/v3/properties/${objectType}/${propertyName}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (getResponse.ok) return;
+  if (getResponse.status !== 404) throw new Error(`HubSpot get property ${objectType}/${propertyName} failed (${getResponse.status}): ${await getResponse.text()}`);
+
+  const createResponse = await fetch(`https://api.hubapi.com/crm/v3/properties/${objectType}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ name: propertyName, label, type: "string", fieldType: "text", groupName: `${objectType}information` }),
+  });
+  if (!createResponse.ok && createResponse.status !== 409) {
+    throw new Error(`HubSpot create property ${objectType}/${propertyName} failed (${createResponse.status}): ${await createResponse.text()}`);
+  }
+}
+
 export async function mergeObjects(
   accessToken: string,
   objectType: "companies" | "contacts",

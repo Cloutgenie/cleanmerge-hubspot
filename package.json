@@ -12,7 +12,8 @@
     "test": "vitest run",
     "register:action": "tsx scripts/register-action.ts",
     "dedup:scan": "tsx scripts/run-dedup-scan.ts",
-    "scan:scheduled": "tsx scripts/run-scheduled-scan.ts"
+    "scan:scheduled": "tsx scripts/run-scheduled-scan.ts",
+    "ingest:scheduled": "tsx scripts/run-scheduled-ingest.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

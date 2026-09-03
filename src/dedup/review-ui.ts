@@ -150,10 +150,11 @@ export function renderReviewScript(): string {
   return { token, portalId };
 }
 
-function label(objectType, props) {
+function label(objectType, props, isPending) {
   if (!props) return "(record data unavailable)";
-  if (objectType === "COMPANY") return (props.name || "(no name)") + " <" + (props.domain || "no domain") + ">";
-  return (props.firstname || "") + " " + (props.lastname || "") + " <" + (props.email || "no email") + ">";
+  const prefix = isPending ? "(pending — from warehouse ingest) " : "";
+  if (objectType === "COMPANY") return prefix + (props.name || "(no name)") + " <" + (props.domain || "no domain") + ">";
+  return prefix + (props.firstname || "") + " " + (props.lastname || "") + " <" + (props.email || "no email") + ">";
 }
 
 async function load() {
@@ -169,19 +170,22 @@ async function load() {
   for (const c of candidates) {
     const el = document.createElement("div");
     el.className = "candidate";
+    const isIngest = c.source === "ingest";
+    const approveLabel = isIngest ? "&#10003; Update existing" : "&#10003; Approve";
+    const rejectLabel = isIngest ? "&#10005; Create new" : "&#10005; Reject";
     el.innerHTML =
-      '<div class="meta">' + c.objectType + ' &middot; score ' + c.score.toFixed(2) + '</div>' +
+      '<div class="meta">' + c.objectType + (isIngest ? ' &middot; warehouse ingest' : '') + ' &middot; score ' + c.score.toFixed(2) + '</div>' +
       '<div class="records">' +
-        '<div class="record">' + label(c.objectType, c.propertiesA) + '</div>' +
-        '<div class="record">' + label(c.objectType, c.propertiesB) + '</div>' +
+        '<div class="record">' + label(c.objectType, c.propertiesA, false) + '</div>' +
+        '<div class="record">' + label(c.objectType, c.propertiesB, isIngest) + '</div>' +
       '</div>' +
       (c.aiRationale
         ? '<div class="rationale"><strong>AI verdict:</strong> ' + (c.aiSameEntity ? "likely same" : "likely different") +
           ' (confidence ' + (c.aiConfidence ?? 0).toFixed(2) + ')<br>' + c.aiRationale + '</div>'
         : '<div class="meta">No AI verdict recorded.</div>') +
       '<div class="actions">' +
-        '<button class="approve">&#10003; Approve</button>' +
-        '<button class="reject">&#10005; Reject</button>' +
+        '<button class="approve">' + approveLabel + '</button>' +
+        '<button class="reject">' + rejectLabel + '</button>' +
       '</div>';
     el.querySelector(".approve").addEventListener("click", () => decide(c, "approved", el));
     el.querySelector(".reject").addEventListener("click", () => decide(c, "rejected", el));

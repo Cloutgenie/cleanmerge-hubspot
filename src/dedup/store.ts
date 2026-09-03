@@ -3,6 +3,8 @@ import { createPool } from "../db.js";
 import type { JudgmentResult } from "./ai-judgment.js";
 import type { DedupTier } from "./scoring.js";
 
+export type CandidateSource = "internal_dedup" | "ingest";
+
 export interface DedupCandidateRow {
   portalId: number;
   objectType: "COMPANY" | "CONTACT";
@@ -13,6 +15,7 @@ export interface DedupCandidateRow {
   breakdown: Record<string, number>;
   propertiesA: Record<string, string | null>;
   propertiesB: Record<string, string | null>;
+  source?: CandidateSource;
 }
 
 export type ReviewDecision = "approved" | "rejected";
@@ -21,6 +24,15 @@ export interface MergeCandidate {
   objectType: "COMPANY" | "CONTACT";
   recordAId: string;
   recordBId: string;
+}
+
+/** An ingest-sourced ambiguous match a human has decided on: approved = update the existing record with propertiesB; rejected = create a new record from propertiesB. */
+export interface IngestDecisionRow {
+  objectType: "COMPANY" | "CONTACT";
+  recordAId: string;
+  recordBId: string;
+  decision: ReviewDecision;
+  propertiesB: Record<string, string | null>;
 }
 
 export interface MergeLogRow {
@@ -44,6 +56,7 @@ export interface ReviewCandidateRow {
   aiConfidence: number | null;
   aiRationale: string | null;
   status: string;
+  source: CandidateSource;
 }
 
 export class DedupStore {
@@ -74,7 +87,8 @@ export class DedupStore {
       ADD COLUMN IF NOT EXISTS ai_rationale TEXT,
       ADD COLUMN IF NOT EXISTS ai_judged_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS properties_a JSONB,
-      ADD COLUMN IF NOT EXISTS properties_b JSONB`);
+      ADD COLUMN IF NOT EXISTS properties_b JSONB,
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'internal_dedup'`);
     await this.pool.query(`CREATE TABLE IF NOT EXISTS merge_log (
       id BIGSERIAL PRIMARY KEY,
       portal_id BIGINT NOT NULL,
@@ -87,16 +101,22 @@ export class DedupStore {
     )`);
   }
 
+  /**
+   * For ingest-sourced candidates, recordBId is a synthetic `ingest:...` id (see src/ingest/engine.ts)
+   * standing in for a not-yet-created HubSpot record. The `.sort()` below relies on HubSpot object ids
+   * always being numeric strings, which always sort before any `ingest:`-prefixed id — so record_a_id
+   * reliably stays the real HubSpot record for ingest candidates without special-casing it here.
+   */
   async upsertCandidate(row: DedupCandidateRow): Promise<void> {
     const [recordAId, recordBId] = [row.recordAId, row.recordBId].sort();
     const [propertiesA, propertiesB] = recordAId === row.recordAId ? [row.propertiesA, row.propertiesB] : [row.propertiesB, row.propertiesA];
     await this.pool.query(
-      `INSERT INTO dedup_candidates (portal_id, object_type, record_a_id, record_b_id, score, tier, breakdown, properties_a, properties_b, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+      `INSERT INTO dedup_candidates (portal_id, object_type, record_a_id, record_b_id, score, tier, breakdown, properties_a, properties_b, source, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
        ON CONFLICT (portal_id, object_type, record_a_id, record_b_id)
        DO UPDATE SET score = EXCLUDED.score, tier = EXCLUDED.tier, breakdown = EXCLUDED.breakdown,
-         properties_a = EXCLUDED.properties_a, properties_b = EXCLUDED.properties_b, updated_at = NOW()`,
-      [row.portalId, row.objectType, recordAId, recordBId, row.score, row.tier, JSON.stringify(row.breakdown), JSON.stringify(propertiesA), JSON.stringify(propertiesB)],
+         properties_a = EXCLUDED.properties_a, properties_b = EXCLUDED.properties_b, source = EXCLUDED.source, updated_at = NOW()`,
+      [row.portalId, row.objectType, recordAId, recordBId, row.score, row.tier, JSON.stringify(row.breakdown), JSON.stringify(propertiesA), JSON.stringify(propertiesB), row.source ?? "internal_dedup"],
     );
   }
 
@@ -112,7 +132,7 @@ export class DedupStore {
   /** Pending ambiguous-tier candidates, pre-sorted so the AI's most-confident same-entity calls surface first. */
   async listPendingReview(portalId: number): Promise<ReviewCandidateRow[]> {
     const result = await this.pool.query(
-      `SELECT object_type, record_a_id, record_b_id, score, breakdown, properties_a, properties_b, ai_same_entity, ai_confidence, ai_rationale, status
+      `SELECT object_type, record_a_id, record_b_id, score, breakdown, properties_a, properties_b, ai_same_entity, ai_confidence, ai_rationale, status, source
        FROM dedup_candidates
        WHERE portal_id = $1 AND tier = 'ambiguous' AND status = 'pending'
        ORDER BY ai_confidence DESC NULLS LAST, score DESC`,
@@ -130,6 +150,7 @@ export class DedupStore {
       aiConfidence: r.ai_confidence,
       aiRationale: r.ai_rationale,
       status: r.status,
+      source: r.source,
     }));
   }
 
@@ -142,10 +163,10 @@ export class DedupStore {
     );
   }
 
-  /** Human-approved pairs (from the review queue) waiting to be merged. */
+  /** Human-approved pairs of two EXISTING records (from the review queue) waiting to be merged via HubSpot's Merge API. Ingest-sourced decisions are handled separately — see listIngestDecisions. */
   async listApprovedForMerge(portalId: number): Promise<MergeCandidate[]> {
     const result = await this.pool.query(
-      `SELECT object_type, record_a_id, record_b_id FROM dedup_candidates WHERE portal_id = $1 AND status = 'approved'`,
+      `SELECT object_type, record_a_id, record_b_id FROM dedup_candidates WHERE portal_id = $1 AND status = 'approved' AND source = 'internal_dedup'`,
       [portalId],
     );
     return result.rows.map((r) => ({ objectType: r.object_type, recordAId: r.record_a_id, recordBId: r.record_b_id }));
@@ -154,10 +175,26 @@ export class DedupStore {
   /** High-confidence pairs no human has reviewed — only returned when the caller explicitly opts in to auto-merging them. */
   async listHighConfidencePending(portalId: number): Promise<MergeCandidate[]> {
     const result = await this.pool.query(
-      `SELECT object_type, record_a_id, record_b_id FROM dedup_candidates WHERE portal_id = $1 AND tier = 'high' AND status = 'pending'`,
+      `SELECT object_type, record_a_id, record_b_id FROM dedup_candidates WHERE portal_id = $1 AND tier = 'high' AND status = 'pending' AND source = 'internal_dedup'`,
       [portalId],
     );
     return result.rows.map((r) => ({ objectType: r.object_type, recordAId: r.record_a_id, recordBId: r.record_b_id }));
+  }
+
+  /** Ingest-sourced ambiguous matches a human has decided on, not yet executed: approved = update record_a_id with properties_b; rejected = create a new record from properties_b. */
+  async listIngestDecisions(portalId: number): Promise<IngestDecisionRow[]> {
+    const result = await this.pool.query(
+      `SELECT object_type, record_a_id, record_b_id, status, properties_b
+       FROM dedup_candidates WHERE portal_id = $1 AND source = 'ingest' AND status IN ('approved', 'rejected')`,
+      [portalId],
+    );
+    return result.rows.map((r) => ({
+      objectType: r.object_type,
+      recordAId: r.record_a_id,
+      recordBId: r.record_b_id,
+      decision: r.status as ReviewDecision,
+      propertiesB: r.properties_b,
+    }));
   }
 
   async recordMerge(row: MergeLogRow): Promise<void> {
@@ -171,6 +208,15 @@ export class DedupStore {
     const [a, b] = [recordAId, recordBId].sort();
     await this.pool.query(
       `UPDATE dedup_candidates SET status = 'merged', updated_at = NOW() WHERE portal_id = $1 AND object_type = $2 AND record_a_id = $3 AND record_b_id = $4`,
+      [portalId, objectType, a, b],
+    );
+  }
+
+  /** Terminal state for an executed ingest decision (record_a_id updated, or a new record created from properties_b). */
+  async markIngestResolved(portalId: number, objectType: "COMPANY" | "CONTACT", recordAId: string, recordBId: string): Promise<void> {
+    const [a, b] = [recordAId, recordBId].sort();
+    await this.pool.query(
+      `UPDATE dedup_candidates SET status = 'resolved', updated_at = NOW() WHERE portal_id = $1 AND object_type = $2 AND record_a_id = $3 AND record_b_id = $4`,
       [portalId, objectType, a, b],
     );
   }

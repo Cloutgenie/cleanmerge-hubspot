@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { normalizeForMerge, pickWinner } from "../src/dedup/merge-executor.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/dedup/hubspot-client.js", async () => {
+  const actual = await vi.importActual<typeof import("../src/dedup/hubspot-client.js")>("../src/dedup/hubspot-client.js");
+  return { ...actual, createObject: vi.fn(), updateObject: vi.fn() };
+});
+
+import { createObject, updateObject } from "../src/dedup/hubspot-client.js";
+import { executeIngestBatch, normalizeForMerge, pickWinner } from "../src/dedup/merge-executor.js";
+import type { DedupStore, IngestDecisionRow } from "../src/dedup/store.js";
 
 describe("pickWinner", () => {
   it("prefers the record with more populated fields", () => {
@@ -32,5 +40,55 @@ describe("normalizeForMerge", () => {
   it("omits fields that fail to normalize instead of throwing", () => {
     const updates = normalizeForMerge("COMPANY", { name: "Acme", domain: "not a domain", phone: null });
     expect(updates).toEqual({});
+  });
+});
+
+describe("executeIngestBatch", () => {
+  beforeEach(() => {
+    vi.mocked(createObject).mockReset();
+    vi.mocked(updateObject).mockReset();
+  });
+
+  function fakeDedupStore(decisions: IngestDecisionRow[]): DedupStore {
+    return {
+      listIngestDecisions: vi.fn().mockResolvedValue(decisions),
+      markIngestResolved: vi.fn().mockResolvedValue(undefined),
+    } as unknown as DedupStore;
+  }
+
+  it("updates the existing record when the decision is approved", async () => {
+    vi.mocked(updateObject).mockResolvedValue(undefined);
+    const dedupStore = fakeDedupStore([{ objectType: "COMPANY", recordAId: "500", recordBId: "ingest:1:abc", decision: "approved", propertiesB: { name: "Acme Corp", domain: "acme.com" } }]);
+
+    const result = await executeIngestBatch("token", 42, dedupStore);
+
+    expect(result.succeeded).toEqual([{ recordAId: "500", recordBId: "ingest:1:abc", action: "updated", resultId: "500" }]);
+    expect(updateObject).toHaveBeenCalledWith("token", "companies", "500", { name: "Acme Corp", domain: "acme.com" });
+    expect(createObject).not.toHaveBeenCalled();
+    expect(dedupStore.markIngestResolved).toHaveBeenCalledWith(42, "COMPANY", "500", "ingest:1:abc");
+  });
+
+  it("creates a new record when the decision is rejected", async () => {
+    vi.mocked(createObject).mockResolvedValue({ id: "999", properties: {} });
+    const dedupStore = fakeDedupStore([{ objectType: "COMPANY", recordAId: "500", recordBId: "ingest:1:def", decision: "rejected", propertiesB: { name: "Acme Holdings", domain: "acme-holdings.com" } }]);
+
+    const result = await executeIngestBatch("token", 42, dedupStore);
+
+    expect(result.succeeded).toEqual([{ recordAId: "500", recordBId: "ingest:1:def", action: "created", resultId: "999" }]);
+    expect(createObject).toHaveBeenCalledWith("token", "companies", { name: "Acme Holdings", domain: "acme-holdings.com" });
+    expect(updateObject).not.toHaveBeenCalled();
+  });
+
+  it("isolates a failure to one decision and continues the batch", async () => {
+    vi.mocked(updateObject).mockRejectedValueOnce(new Error("HubSpot update companies failed (404)"));
+    const dedupStore = fakeDedupStore([
+      { objectType: "COMPANY", recordAId: "500", recordBId: "ingest:1:abc", decision: "approved", propertiesB: { name: "Acme Corp" } },
+    ]);
+
+    const result = await executeIngestBatch("token", 42, dedupStore);
+
+    expect(result.succeeded).toEqual([]);
+    expect(result.failed).toEqual([{ recordAId: "500", recordBId: "ingest:1:abc", error: "HubSpot update companies failed (404)" }]);
+    expect(dedupStore.markIngestResolved).not.toHaveBeenCalled();
   });
 });

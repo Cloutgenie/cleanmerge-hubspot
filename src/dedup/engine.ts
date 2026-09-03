@@ -31,8 +31,15 @@ export type AiJudge = (
   scoreBreakdown: Record<string, number>,
 ) => Promise<JudgmentResult>;
 
-/** Groups record ids by every blocking key they produce, so only records sharing a key are ever pairwise-compared. */
-function buildBuckets<T>(records: CrmRecord[], computeKeys: (props: T) => { keyType: string; keyValue: string }[]): Map<string, Set<string>> {
+/**
+ * Groups record ids by every blocking key they produce, so only records sharing a key are ever
+ * pairwise-compared, plus an id->record lookup. Exported so the ingest pipeline can build this once
+ * per run and do O(1) bucket lookups per incoming row, instead of an O(n) scan per row.
+ */
+export function buildBlockingIndex<T>(
+  records: CrmRecord[],
+  computeKeys: (props: T) => { keyType: string; keyValue: string }[],
+): { buckets: Map<string, Set<string>>; byId: Map<string, CrmRecord> } {
   const buckets = new Map<string, Set<string>>();
   for (const record of records) {
     for (const key of computeKeys(record.properties as T)) {
@@ -41,7 +48,7 @@ function buildBuckets<T>(records: CrmRecord[], computeKeys: (props: T) => { keyT
       buckets.get(bucketKey)!.add(record.id);
     }
   }
-  return buckets;
+  return { buckets, byId: new Map(records.map((r) => [r.id, r])) };
 }
 
 async function scanObjectType<T>(
@@ -53,8 +60,7 @@ async function scanObjectType<T>(
   store: DedupStore,
   judge: AiJudge | undefined,
 ): Promise<DedupScanSummary> {
-  const byId = new Map(records.map((r) => [r.id, r]));
-  const buckets = buildBuckets(records, computeKeys);
+  const { buckets, byId } = buildBlockingIndex(records, computeKeys);
   const seenPairs = new Set<string>();
   const topCandidates: CandidateDetail[] = [];
   let high = 0;

@@ -1,9 +1,10 @@
 import "dotenv/config";
 import type { Express } from "express";
-import { createApp, type DedupDeps } from "./app.js";
+import { createApp, type DedupDeps, type IngestDeps } from "./app.js";
 import { loadConfig } from "./config.js";
 import { judgeCandidate } from "./dedup/ai-judgment.js";
 import { DedupStore } from "./dedup/store.js";
+import { IngestStore } from "./ingest/store.js";
 import { OAuthTokenManager } from "./token-manager.js";
 import { MemoryTokenStore, PostgresTokenStore } from "./token-store.js";
 
@@ -14,8 +15,9 @@ const tokenStore = config.DATABASE_URL && config.TOKEN_ENCRYPTION_KEY
 await tokenStore.initialize();
 
 let dedup: DedupDeps | undefined;
+let dedupStore: DedupStore | undefined;
 if (config.DATABASE_URL) {
-  const dedupStore = new DedupStore(config.DATABASE_URL);
+  dedupStore = new DedupStore(config.DATABASE_URL);
   await dedupStore.initialize();
   dedup = {
     tokenManager: new OAuthTokenManager(config, tokenStore),
@@ -26,7 +28,14 @@ if (config.DATABASE_URL) {
   };
 }
 
-const app: Express = createApp(config, tokenStore, dedup);
+let ingest: IngestDeps | undefined;
+if (config.DATABASE_URL && config.TOKEN_ENCRYPTION_KEY && dedupStore) {
+  const ingestStore = new IngestStore(config.DATABASE_URL, config.TOKEN_ENCRYPTION_KEY);
+  await ingestStore.initialize();
+  ingest = { tokenManager: new OAuthTokenManager(config, tokenStore), ingestStore, dedupStore };
+}
+
+const app: Express = createApp(config, tokenStore, dedup, ingest);
 
 if (process.env.VERCEL !== "1") {
   app.listen(config.PORT, () => console.log(`CleanMerge listening on port ${config.PORT}`));

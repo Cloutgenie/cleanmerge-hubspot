@@ -34,6 +34,23 @@ The registration payload is in `action-definition.json`. New HubSpot developer p
 
 For Railway, deploy this package directory and add a Postgres service. For Vercel, set the project root to this directory and use a hosted Postgres connection string. Set `PUBLIC_BASE_URL` to the final HTTPS origin before registration.
 
+## Warehouse ingest (internal, ops-configured)
+
+Pulls rows from a customer's SQL-queryable warehouse (Databricks SQL Warehouses via REST today; anything exposing a similar statement-execution API fits the same `WarehouseConnector` interface) into HubSpot Contacts/Companies, matching incoming rows against existing records via the same blocking/scoring logic the dedup engine uses so ingest doesn't create fresh duplicates. Not installer-facing — configured per customer via the admin-gated `/internal/ingest/*` endpoints (require `Authorization: Bearer $INTERNAL_ADMIN_TOKEN`, same as `/internal/dedup/*`):
+
+- `POST /internal/ingest/connections` — register a warehouse connection (`portalId`, `name`, `connectorType`, `config`, `credentials`). Credentials are AES-256-GCM encrypted at rest and never returned by any `GET`.
+- `PUT /internal/ingest/connections/:id` — rotate credentials or update config.
+- `GET /internal/ingest/connections?portalId=` — list connections for a portal.
+- `POST /internal/ingest/mappings` — define the fixed source query, field mappings, and match-key columns for one object type on a connection.
+- `POST /internal/ingest/run` — trigger a run (`portalId`, `connectionId`); returns per-object-type counts of rows created/updated/queued-for-review/errored.
+- `GET /internal/ingest/runs?portalId=` — run history.
+
+High-confidence matches update the existing record automatically; ambiguous matches are queued into the same review UI as the dedup engine (`/internal/dedup/review-ui`) — approving one there updates the matched record, rejecting one creates a new record instead. Both outcomes execute via `POST /internal/dedup/execute-merges`, alongside dedup merges.
+
+Cadence is not self-service in this version: for each customer, deploy a second Railway service from this repo with `startCommand: npm run ingest:scheduled` and a `cronSchedule`, with env vars `INGEST_TARGET_BASE_URL` (or reuse `SCAN_TARGET_BASE_URL`), `INTERNAL_ADMIN_TOKEN`, `INGEST_PORTAL_ID`, `INGEST_CONNECTION_ID` — mirrors how `scan:scheduled` is deployed today.
+
+Requires the same write scopes as the merge executor (`crm.objects.contacts.write`, `crm.objects.companies.write`) plus `crm.schemas.contacts.write` / `crm.schemas.companies.write` for mappings that create a custom property on first write.
+
 ## Response behavior
 
 Valid executions always return HTTP 200 with HubSpot output fields:

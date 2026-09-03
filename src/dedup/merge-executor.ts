@@ -1,5 +1,5 @@
 import { extractDomain, formatPhoneE164, properCase } from "../transformations.js";
-import { getObject, mergeObjects, updateObject } from "./hubspot-client.js";
+import { createObject, getObject, mergeObjects, updateObject } from "./hubspot-client.js";
 import type { DedupStore, MergeCandidate } from "./store.js";
 
 type ObjectType = "COMPANY" | "CONTACT";
@@ -156,6 +156,56 @@ export async function executeMergeBatch(
       succeeded.push(outcome);
     } catch (error) {
       failed.push({ recordAId: candidate.recordAId, recordBId: candidate.recordBId, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  return { succeeded, failed };
+}
+
+export interface IngestResolutionOutcome {
+  recordAId: string;
+  recordBId: string;
+  action: "updated" | "created";
+  resultId: string;
+}
+
+export interface IngestResolutionBatchResult {
+  succeeded: IngestResolutionOutcome[];
+  failed: Array<{ recordAId: string; recordBId: string; error: string }>;
+}
+
+/**
+ * Executes human decisions on ingest-sourced ambiguous matches: approved ("yes, same entity") updates
+ * the existing record (record_a_id) with the incoming row's properties; rejected ("no, different
+ * entity") creates a new record from them instead. Unlike the internal-dedup merge path, there's no
+ * HubSpot Merge API call — record_b_id is a synthetic id for a row that never existed as a real object.
+ */
+export async function executeIngestBatch(accessToken: string, portalId: number, store: DedupStore): Promise<IngestResolutionBatchResult> {
+  const decisions = await store.listIngestDecisions(portalId);
+  const succeeded: IngestResolutionOutcome[] = [];
+  const failed: Array<{ recordAId: string; recordBId: string; error: string }> = [];
+
+  for (const decision of decisions) {
+    try {
+      const hubspotType = toHubSpotType(decision.objectType);
+      const properties = Object.fromEntries(
+        Object.entries(decision.propertiesB).filter((entry): entry is [string, string] => entry[1] != null),
+      );
+      let resultId: string;
+      let action: "updated" | "created";
+      if (decision.decision === "approved") {
+        await updateObject(accessToken, hubspotType, decision.recordAId, properties);
+        resultId = decision.recordAId;
+        action = "updated";
+      } else {
+        const created = await createObject(accessToken, hubspotType, properties);
+        resultId = created.id;
+        action = "created";
+      }
+      await store.markIngestResolved(portalId, decision.objectType, decision.recordAId, decision.recordBId);
+      succeeded.push({ recordAId: decision.recordAId, recordBId: decision.recordBId, action, resultId });
+    } catch (error) {
+      failed.push({ recordAId: decision.recordAId, recordBId: decision.recordBId, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
