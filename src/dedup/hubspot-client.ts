@@ -72,6 +72,19 @@ export async function ensurePropertyExists(
   }
 }
 
+/** Archives (soft-deletes) a record. HubSpot returns 204 No Content on success. */
+export async function archiveObject(
+  accessToken: string,
+  objectType: "companies" | "contacts",
+  id: string,
+): Promise<void> {
+  const response = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/${id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`HubSpot archive ${objectType}/${id} failed (${response.status}): ${await response.text()}`);
+}
+
 export async function mergeObjects(
   accessToken: string,
   objectType: "companies" | "contacts",

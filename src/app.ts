@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
+import { archiveObject } from "./dedup/hubspot-client.js";
 import { executeIngestBatch, executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
@@ -235,6 +236,26 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       } catch (error) {
         console.error("Execute merges failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Execute merges failed" });
+      }
+    });
+
+    // General-purpose admin correction tool — e.g. archiving a record a bad ingest mapping created.
+    app.delete("/internal/dedup/objects/:objectType/:id", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const objectType = req.params.objectType;
+      const id = req.params.id;
+      const portalId = Number(req.body?.portalId);
+      if ((objectType !== "companies" && objectType !== "contacts") || !id || !Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "objectType ('companies' | 'contacts'), id (in the path), and portalId (in the body) are required" });
+        return;
+      }
+      try {
+        const accessToken = await dedup.tokenManager.getAccessToken(portalId);
+        await archiveObject(accessToken, objectType, id);
+        res.status(200).json({ archived: true });
+      } catch (error) {
+        console.error("Archive object failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Archive object failed" });
       }
     });
   }

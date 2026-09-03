@@ -46,7 +46,7 @@ Pulls rows from a customer's SQL-queryable warehouse (Databricks SQL Warehouses 
 - `POST /internal/ingest/run` — trigger a run (`portalId`, `connectionId`); returns per-object-type counts of rows created/updated/queued-for-review/errored.
 - `GET /internal/ingest/runs?portalId=` — run history.
 
-High-confidence matches update the existing record automatically; ambiguous matches are queued into the same review UI as the dedup engine (`/internal/dedup/review-ui`) — approving one there updates the matched record, rejecting one creates a new record instead. Both outcomes execute via `POST /internal/dedup/execute-merges`, alongside dedup merges.
+High-confidence matches update the existing record automatically; ambiguous matches are queued into the same review UI as the dedup engine (`/internal/dedup/review-ui`) — approving one there updates the matched record, rejecting one creates a new record instead. Both outcomes execute via `POST /internal/dedup/execute-merges`, alongside dedup merges. To undo a bad create (e.g. a wrong mapping), `DELETE /internal/dedup/objects/:objectType/:id` (`companies` | `contacts`, `portalId` in the body) archives the record.
 
 Cadence is not self-service in this version: for each customer, deploy a second Railway service from this repo with `startCommand: npm run ingest:scheduled` and a `cronSchedule`, with env vars `INGEST_TARGET_BASE_URL` (or reuse `SCAN_TARGET_BASE_URL`), `INTERNAL_ADMIN_TOKEN`, `INGEST_PORTAL_ID`, `INGEST_CONNECTION_ID` — mirrors how `scan:scheduled` is deployed today.
 
