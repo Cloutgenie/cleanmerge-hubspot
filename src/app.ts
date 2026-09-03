@@ -138,10 +138,12 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
           const isContactCreation = isLegacyContactCreation || isModernContactCreation;
           const portalId = Number(event?.portalId);
           const objectId = event?.objectId != null ? String(event.objectId) : undefined;
+          console.log("Contact Gate webhook event received", { subscriptionType, objectType, portalId, objectId, isContactCreation, raw: event });
           if (!isContactCreation || !Number.isInteger(portalId) || portalId <= 0 || !objectId) continue;
 
           const accessToken = await contactGate.tokenManager.getAccessToken(portalId);
-          await evaluateContactCreation(accessToken, contactGate.contactGateStore, { portalId, objectId, rawPayload: event });
+          const decision = await evaluateContactCreation(accessToken, contactGate.contactGateStore, { portalId, objectId, rawPayload: event });
+          console.log("Contact Gate decision", { portalId, objectId, decision });
         } catch (error) {
           console.error("Contact Gate webhook event failed", error instanceof Error ? error.message : error);
         }
