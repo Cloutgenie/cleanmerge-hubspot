@@ -39,6 +39,8 @@ export function renderSharedDataGuide(): string {
   code { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.4rem; font-size: 0.88em; }
   .callout { background: rgba(243, 200, 107, 0.08); border: 1px solid rgba(243, 200, 107, 0.3); border-left: 3px solid var(--warn); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.25rem 0; font-size: 0.92rem; }
   .callout strong { color: var(--warn); }
+  .callout-resolved { background: rgba(111, 211, 161, 0.08); border: 1px solid rgba(111, 211, 161, 0.3); border-left: 3px solid #6fd3a1; border-radius: 8px; padding: 1rem 1.2rem; margin: 1.25rem 0; font-size: 0.92rem; }
+  .callout-resolved strong { color: #6fd3a1; }
   a { color: var(--accent); }
 </style>
 </head>
@@ -47,31 +49,31 @@ export function renderSharedDataGuide(): string {
 <h1>Shared Data — CleanMerge</h1>
 <p class="lede">Reference content for the "Shared Data" section of the HubSpot Marketplace listing — describes exactly how CleanMerge's requested OAuth scopes are currently used. This is written to be accurate as of today's build, not aspirational.</p>
 
-<div class="callout">
-<strong>Known scope/usage mismatch:</strong> CleanMerge's OAuth scopes include write access to Companies and Contacts, but as of today, <strong>nothing an installer can trigger uses that write access</strong>. Only the app owner's internal admin tooling (not exposed to installers) currently reads or writes CRM records. HubSpot's listing requirements state extraneous or unused scopes must be removed. Before submitting a listing, either (a) narrow the OAuth scopes to read-only until the review/merge tooling is made self-serve, or (b) make that tooling self-serve first so the write scope has a real, installer-facing use. Documenting it as "in use" without one of those would misrepresent the app to reviewers.
+<div class="callout-resolved">
+<strong>Resolved:</strong> CleanMerge previously requested write access to Companies and Contacts with no installer-facing feature using it. Scopes have been narrowed to read-only (<code>crm.objects.companies.read</code>, <code>crm.objects.contacts.read</code>) so the requested scopes now match actual usage. Write access can be re-added later once the review/merge tooling below is made self-serve for installers.
 </div>
 
 <h2>Contacts</h2>
 <table>
-<tr><th>Scope requested</th><td><code>crm.objects.contacts.read</code>, <code>crm.objects.contacts.write</code></td></tr>
-<tr><th>Direction</th><td><span class="badge badge-read">Read only, in practice</span></td></tr>
+<tr><th>Scope requested</th><td><code>crm.objects.contacts.read</code></td></tr>
+<tr><th>Direction</th><td><span class="badge badge-read">Read only</span></td></tr>
 <tr><th>Fields</th><td><code>firstname</code>, <code>lastname</code>, <code>email</code>, <code>phone</code></td></tr>
 <tr><th>How it's actually used</th><td>
   The <strong>CleanMerge: Normalize CRM Data</strong> workflow action does not call HubSpot's CRM API at all — HubSpot's own workflow engine passes the selected property's value into the action and writes the returned value back to whichever property the workflow is configured to update. CleanMerge never reads or writes a Contact record directly for this feature.<br><br>
-  The write scope exists to support duplicate-detection and merge tooling that is built and deployed, but currently reachable only by the app owner via an internal admin endpoint — not by installers.
+  The read scope supports duplicate-detection tooling that is built and deployed, but currently reachable only by the app owner via an internal admin endpoint — not by installers.
 </td></tr>
 </table>
 
 <h2>Companies</h2>
 <table>
-<tr><th>Scope requested</th><td><code>crm.objects.companies.read</code>, <code>crm.objects.companies.write</code></td></tr>
-<tr><th>Direction</th><td><span class="badge badge-read">Read only, in practice</span></td></tr>
+<tr><th>Scope requested</th><td><code>crm.objects.companies.read</code></td></tr>
+<tr><th>Direction</th><td><span class="badge badge-read">Read only</span></td></tr>
 <tr><th>Fields</th><td><code>name</code>, <code>domain</code>, <code>phone</code></td></tr>
-<tr><th>How it's actually used</th><td>Same as Contacts above — the workflow action doesn't touch Company records directly; the write scope is reserved for the not-yet-self-serve duplicate-detection tooling.</td></tr>
+<tr><th>How it's actually used</th><td>Same as Contacts above — the workflow action doesn't touch Company records directly; the read scope is reserved for the not-yet-self-serve duplicate-detection tooling.</td></tr>
 </table>
 
-<h2>If/when the write scope becomes installer-facing</h2>
-<p>Once the review queue and merge executor are exposed to installers (not just the app owner), this table should be updated to describe genuine bi-directional sync:</p>
+<h2>If/when duplicate-detection becomes installer-facing</h2>
+<p>Once the review queue and merge executor are exposed to installers (not just the app owner), write scopes will need to be re-added and this table updated to describe genuine bi-directional sync:</p>
 <table>
 <tr><th>Object</th><th>Direction</th><th>What changes</th></tr>
 <tr><td>Contacts</td><td><span class="badge badge-bidirectional">Bidirectional</span></td><td>Reads Contact fields to detect duplicates; on a user-approved or high-confidence merge, updates the surviving record's <code>firstname</code>/<code>lastname</code>/<code>phone</code> with normalized values and merges the duplicate via HubSpot's Merge API.</td></tr>
