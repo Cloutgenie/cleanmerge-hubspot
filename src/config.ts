@@ -8,6 +8,7 @@ const schema = z.object({
   HUBSPOT_CLIENT_SECRET: z.string().min(1),
   HUBSPOT_REDIRECT_URI: z.string().url(),
   HUBSPOT_SCOPES: z.string().default("automation"),
+  HUBSPOT_OPTIONAL_SCOPES: z.string().optional(),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
   DATABASE_URL: z.string().url().optional(),
   INTERNAL_ADMIN_TOKEN: z.string().optional(),

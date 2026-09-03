@@ -52,6 +52,27 @@ Cadence is not self-service in this version: for each customer, deploy a second 
 
 Requires the same write scopes as the merge executor (`crm.objects.contacts.write`, `crm.objects.companies.write`) plus `crm.schemas.contacts.write` / `crm.schemas.companies.write` for mappings that create a custom property on first write.
 
+## Contact Gate (internal, ops-configured) — reverse quarantine for Conversations-created contacts
+
+HubSpot auto-creates a Contact for every unknown inbound Conversations/Help Desk email sender, with no native way to stop it — there's no pre-create intercept, only a webhook fired after the fact. Contact Gate listens for `contact.creation`, checks the new contact's `hs_object_source_label` to see if it came from Conversations, and — if the portal's policy says to — archives it within seconds and holds it in a review queue instead of leaving it in the CRM.
+
+**Two platform facts had to be verified empirically before this shipped any live deletes, not assumed:**
+- The webhooks component (`cleanmerge-hubspot-app/src/app/webhooks/webhooks-hsmeta.json`, scaffolded via `hs project add --features webhooks`) only supports `objectType: "contact"` for `object.creation` subscriptions — `"conversation"` was tried and rejected by a real `hs project upload`. Source detection therefore relies entirely on the created contact's own `hs_object_source_label`, not a separate Conversations-thread event.
+- What happens to a Conversations thread after its contact is deleted seconds later is undocumented anywhere in HubSpot's docs. Because of that, **every portal defaults to `dry_run: true`** — the quarantine loop runs end-to-end (detects, logs, lets you promote/discard) without ever calling `archiveObject`, until `dry_run` is explicitly flipped off per portal after confirming real behavior in a sandbox.
+
+Admin-gated endpoints (`Authorization: Bearer $INTERNAL_ADMIN_TOKEN`, same pattern as `/internal/dedup/*` and `/internal/ingest/*`):
+
+- `PUT /internal/contact-gate/policy` — set `policy` (`never_create` | `allowlist_only` | `quarantine` | `create`) and `dryRun` (the kill switch) per portal.
+- `GET /internal/contact-gate/policy?portalId=`
+- `GET /internal/contact-gate/quarantine?portalId=` — pending queue.
+- `POST /internal/contact-gate/quarantine/:id/promote` — recreates the contact (only if it was actually deleted) and optionally allowlists its domain (`addToAllowlist: true`).
+- `POST /internal/contact-gate/quarantine/:id/discard` — suppresses the email for `suppressDays` (default 30) so it's re-quarantined, not re-reviewed from scratch, if it comes back.
+- `POST /internal/contact-gate/allowlist` — add a `domain` or `email` match.
+- `POST /internal/contact-gate/seed-allowlist` — bulk-seeds the allowlist from existing Company domains plus HubSpot Owner emails (the spec's "staff pack").
+- `GET /internal/contact-gate/audit?portalId=` — every promote/discard/allowlist/policy-change, logged.
+
+Requires the `conversations.read` and `crm.objects.owners.read` scopes, both added as `optionalScopes` in `app-hsmeta.json` (not `requiredScopes`) — ordinary free-tier installers aren't forced through a bigger consent screen for a feature they're not using. Set `HUBSPOT_OPTIONAL_SCOPES` (space/comma-separated) before walking a specific Contact Gate customer through `/oauth/install` so their reauthorization actually requests them.
+
 ## Response behavior
 
 Valid executions always return HTTP 200 with HubSpot output fields:

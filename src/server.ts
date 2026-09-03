@@ -1,6 +1,7 @@
 import "dotenv/config";
 import type { Express } from "express";
-import { createApp, type DedupDeps, type IngestDeps } from "./app.js";
+import { createApp, type ContactGateDeps, type DedupDeps, type IngestDeps } from "./app.js";
+import { ContactGateStore } from "./contact-gate/store.js";
 import { loadConfig } from "./config.js";
 import { judgeCandidate } from "./dedup/ai-judgment.js";
 import { DedupStore } from "./dedup/store.js";
@@ -35,7 +36,14 @@ if (config.DATABASE_URL && config.TOKEN_ENCRYPTION_KEY && dedupStore) {
   ingest = { tokenManager: new OAuthTokenManager(config, tokenStore), ingestStore, dedupStore };
 }
 
-const app: Express = createApp(config, tokenStore, dedup, ingest);
+let contactGate: ContactGateDeps | undefined;
+if (config.DATABASE_URL) {
+  const contactGateStore = new ContactGateStore(config.DATABASE_URL);
+  await contactGateStore.initialize();
+  contactGate = { tokenManager: new OAuthTokenManager(config, tokenStore), contactGateStore };
+}
+
+const app: Express = createApp(config, tokenStore, dedup, ingest, contactGate);
 
 if (process.env.VERCEL !== "1") {
   app.listen(config.PORT, () => console.log(`CleanMerge listening on port ${config.PORT}`));

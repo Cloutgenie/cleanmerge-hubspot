@@ -5,10 +5,12 @@ import { z } from "zod";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
-import { archiveObject } from "./dedup/hubspot-client.js";
+import { archiveObject, createObject, listAllObjects, listOwners } from "./dedup/hubspot-client.js";
 import { executeIngestBatch, executeMergeBatch } from "./dedup/merge-executor.js";
 import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
+import { evaluateContactCreation } from "./contact-gate/policy-engine.js";
+import type { AllowlistMatchType, ContactGatePolicy, ContactGateStore } from "./contact-gate/store.js";
 import { runIngest } from "./ingest/engine.js";
 import { DatabricksConnector } from "./ingest/connectors/databricks.js";
 import { PostgresConnector } from "./ingest/connectors/postgres.js";
@@ -38,6 +40,11 @@ export interface IngestDeps {
   dedupStore: DedupStore;
 }
 
+export interface ContactGateDeps {
+  tokenManager: OAuthTokenManager;
+  contactGateStore: ContactGateStore;
+}
+
 function connectorFactory(connection: WarehouseConnectionRow): WarehouseConnector {
   if (connection.connectorType === "postgres") return new PostgresConnector(connection.credentials);
   return new DatabricksConnector(connection.config as { serverHostname: string; httpPath: string; catalog?: string; schema?: string }, connection.credentials);
@@ -59,7 +66,7 @@ const executionSchema = z.object({
   }),
 }).passthrough();
 
-export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps): Express {
+export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -106,6 +113,199 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       res.status(200).json({ outputFields: { outputText: inputText, status: `ERROR: ${message}` } });
     }
   });
+
+  if (contactGate) {
+    // HubSpot's webhooks component delivers every subscribed event type to this one URL
+    // (see cleanmerge-hubspot-app's webhooks-hsmeta.json — one webhooks component per project),
+    // as a batch array; each event carries its own subscriptionType/portalId/objectId. The exact
+    // delivered field shape hasn't been confirmed against a live payload yet (see plan Phase 0
+    // step 3), so subscriptionType is matched loosely (contains "contact" and "creat") rather than
+    // an exact string, and any event that doesn't parse is skipped (logged) rather than crashing
+    // the batch — HubSpot expects a fast 200 regardless.
+    app.post("/webhooks/hubspot", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), async (req, res) => {
+      res.status(200).json({ received: true }); // ack immediately; HubSpot retries on non-2xx
+      const events = Array.isArray(req.body) ? req.body : [req.body];
+      for (const event of events) {
+        try {
+          const subscriptionType = String(event?.subscriptionType ?? "").toLocaleLowerCase("en-US");
+          const objectType = String(event?.objectType ?? "").toLocaleLowerCase("en-US");
+          // Two possible delivered shapes (see plan's Phase 0 note): legacy dotted strings like
+          // "contact.creation" carry the object type IN subscriptionType; the modern declarative
+          // format (what this project's webhooks-hsmeta.json actually uses) sends a generic
+          // "object.creation" with the object type in a separate `objectType` field.
+          const isLegacyContactCreation = subscriptionType.includes("contact") && subscriptionType.includes("creat");
+          const isModernContactCreation = subscriptionType === "object.creation" && objectType === "contact";
+          const isContactCreation = isLegacyContactCreation || isModernContactCreation;
+          const portalId = Number(event?.portalId);
+          const objectId = event?.objectId != null ? String(event.objectId) : undefined;
+          if (!isContactCreation || !Number.isInteger(portalId) || portalId <= 0 || !objectId) continue;
+
+          const accessToken = await contactGate.tokenManager.getAccessToken(portalId);
+          await evaluateContactCreation(accessToken, contactGate.contactGateStore, { portalId, objectId, rawPayload: event });
+        } catch (error) {
+          console.error("Contact Gate webhook event failed", error instanceof Error ? error.message : error);
+        }
+      }
+    });
+
+    app.put("/internal/contact-gate/policy", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.body?.portalId);
+      const policy: ContactGatePolicy = req.body?.policy;
+      const dryRun = req.body?.dryRun;
+      if (
+        !Number.isInteger(portalId) || portalId <= 0 ||
+        !["never_create", "allowlist_only", "quarantine", "create"].includes(policy) ||
+        typeof dryRun !== "boolean"
+      ) {
+        res.status(400).json({ error: "portalId, policy ('never_create'|'allowlist_only'|'quarantine'|'create'), and dryRun (boolean) are required" });
+        return;
+      }
+      try {
+        await contactGate.contactGateStore.setPolicy(portalId, policy, dryRun);
+        await contactGate.contactGateStore.recordAudit({ portalId, actor: "admin", action: "policy_change", target: { policy, dryRun } });
+        res.status(200).json({ saved: true });
+      } catch (error) {
+        console.error("Set Contact Gate policy failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Set Contact Gate policy failed" });
+      }
+    });
+
+    app.get("/internal/contact-gate/policy", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      try {
+        res.status(200).json(await contactGate.contactGateStore.getPolicy(portalId));
+      } catch (error) {
+        console.error("Get Contact Gate policy failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Get Contact Gate policy failed" });
+      }
+    });
+
+    app.get("/internal/contact-gate/quarantine", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      try {
+        res.status(200).json({ candidates: await contactGate.contactGateStore.listPending(portalId) });
+      } catch (error) {
+        console.error("List Contact Gate quarantine failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List Contact Gate quarantine failed" });
+      }
+    });
+
+    app.post("/internal/contact-gate/quarantine/:id/promote", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid quarantine id" }); return; }
+      try {
+        const row = await contactGate.contactGateStore.getQuarantineById(id);
+        if (!row) { res.status(404).json({ error: "No quarantine entry with that id" }); return; }
+        let recreatedId: string | undefined;
+        if (row.actionTaken === "deleted") {
+          const accessToken = await contactGate.tokenManager.getAccessToken(row.portalId);
+          const created = await createObject(accessToken, "contacts", { email: row.email });
+          recreatedId = created.id;
+        }
+        if (req.body?.addToAllowlist === true) {
+          const domain = row.email.split("@")[1];
+          if (domain) await contactGate.contactGateStore.addToAllowlist(row.portalId, "domain", domain);
+        }
+        await contactGate.contactGateStore.markQuarantineStatus(id, "promoted");
+        await contactGate.contactGateStore.recordAudit({ portalId: row.portalId, actor: "admin", action: "promote", target: { quarantineId: id, recreatedId } });
+        res.status(200).json({ promoted: true, recreatedId });
+      } catch (error) {
+        console.error("Promote Contact Gate entry failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Promote Contact Gate entry failed" });
+      }
+    });
+
+    app.post("/internal/contact-gate/quarantine/:id/discard", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const id = Number(req.params.id);
+      const suppressDays = Number(req.body?.suppressDays ?? 30);
+      if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid quarantine id" }); return; }
+      try {
+        const row = await contactGate.contactGateStore.getQuarantineById(id);
+        if (!row) { res.status(404).json({ error: "No quarantine entry with that id" }); return; }
+        await contactGate.contactGateStore.suppress(row.portalId, row.email, suppressDays);
+        await contactGate.contactGateStore.markQuarantineStatus(id, "discarded");
+        await contactGate.contactGateStore.recordAudit({ portalId: row.portalId, actor: "admin", action: "discard", target: { quarantineId: id, suppressDays } });
+        res.status(200).json({ discarded: true });
+      } catch (error) {
+        console.error("Discard Contact Gate entry failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Discard Contact Gate entry failed" });
+      }
+    });
+
+    app.post("/internal/contact-gate/allowlist", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.body?.portalId);
+      const matchType: AllowlistMatchType = req.body?.matchType;
+      const matchValue = req.body?.matchValue;
+      if (!Number.isInteger(portalId) || portalId <= 0 || !["domain", "email"].includes(matchType) || typeof matchValue !== "string" || !matchValue) {
+        res.status(400).json({ error: "portalId, matchType ('domain'|'email'), and matchValue are required" });
+        return;
+      }
+      try {
+        await contactGate.contactGateStore.addToAllowlist(portalId, matchType, matchValue);
+        await contactGate.contactGateStore.recordAudit({ portalId, actor: "admin", action: "allowlist_add", target: { matchType, matchValue } });
+        res.status(200).json({ added: true });
+      } catch (error) {
+        console.error("Add to Contact Gate allowlist failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Add to Contact Gate allowlist failed" });
+      }
+    });
+
+    app.post("/internal/contact-gate/seed-allowlist", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.body?.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      try {
+        const accessToken = await contactGate.tokenManager.getAccessToken(portalId);
+        const [companies, owners] = await Promise.all([
+          listAllObjects(accessToken, "companies", ["domain"]),
+          listOwners(accessToken),
+        ]);
+        const domains = companies.map((c) => c.properties.domain).filter((d): d is string => !!d);
+        const emails = owners.map((o) => o.email);
+        await Promise.all([
+          ...domains.map((d) => contactGate.contactGateStore.addToAllowlist(portalId, "domain", d)),
+          ...emails.map((e) => contactGate.contactGateStore.addToAllowlist(portalId, "email", e)),
+        ]);
+        await contactGate.contactGateStore.recordAudit({ portalId, actor: "admin", action: "seed_allowlist", target: { domainCount: domains.length, emailCount: emails.length } });
+        res.status(200).json({ domainsAdded: domains.length, emailsAdded: emails.length });
+      } catch (error) {
+        console.error("Seed Contact Gate allowlist failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Seed Contact Gate allowlist failed" });
+      }
+    });
+
+    app.get("/internal/contact-gate/allowlist", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      try {
+        res.status(200).json({ allowlist: await contactGate.contactGateStore.listAllowlist(portalId) });
+      } catch (error) {
+        console.error("List Contact Gate allowlist failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List Contact Gate allowlist failed" });
+      }
+    });
+
+    app.get("/internal/contact-gate/audit", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const portalId = Number(req.query.portalId);
+      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      try {
+        res.status(200).json({ entries: await contactGate.contactGateStore.listAudit(portalId) });
+      } catch (error) {
+        console.error("List Contact Gate audit log failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "List Contact Gate audit log failed" });
+      }
+    });
+  }
 
   if (dedup) {
     app.post("/internal/dedup/scan", async (req, res) => {

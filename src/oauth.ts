@@ -40,7 +40,19 @@ async function exchangeCode(code: string, config: Config): Promise<OAuthTokens> 
 export function oauthHandlers(config: Config, store: TokenStore) {
   return {
     install(_req: Request, res: Response): void {
-      const query = new URLSearchParams({ client_id: config.HUBSPOT_CLIENT_ID, redirect_uri: config.HUBSPOT_REDIRECT_URI, scope: config.HUBSPOT_SCOPES.split(/[ ,]+/).filter(Boolean).join(" "), state: signState(config) });
+      const params: Record<string, string> = {
+        client_id: config.HUBSPOT_CLIENT_ID,
+        redirect_uri: config.HUBSPOT_REDIRECT_URI,
+        scope: config.HUBSPOT_SCOPES.split(/[ ,]+/).filter(Boolean).join(" "),
+        state: signState(config),
+      };
+      // Optional scopes (e.g. conversations.read, crm.objects.owners.read for Contact Gate) are
+      // unset for ordinary installers and only set when walking a specific customer through
+      // reauthorization for that feature — HubSpot shows these as opt-in on the consent screen
+      // rather than forcing every installer to grant them.
+      const optionalScope = (config.HUBSPOT_OPTIONAL_SCOPES ?? "").split(/[ ,]+/).filter(Boolean).join(" ");
+      if (optionalScope) params.optional_scope = optionalScope;
+      const query = new URLSearchParams(params);
       res.redirect(`https://app.hubspot.com/oauth/authorize?${query.toString()}`);
     },
     async callback(req: Request, res: Response): Promise<void> {

@@ -68,6 +68,17 @@ export function renderSharedDataGuide(): string {
 <tr><th>How it's actually used</th><td>Same as Contacts above — the workflow action doesn't touch Company records directly; read/write is used by the merge engine and the warehouse-ingest pipeline.</td></tr>
 </table>
 
+<h2>Conversations &amp; Owners (optional scopes)</h2>
+<table>
+<tr><th>Scope requested</th><td><code>conversations.read</code>, <code>crm.objects.owners.read</code> &mdash; requested as <strong>optional</strong> scopes, not required for every installer</td></tr>
+<tr><th>Direction</th><td><span class="badge badge-bidirectional">Read only</span></td></tr>
+<tr><th>Fields</th><td>A created Contact's <code>hs_object_source_label</code> (to tell whether it came from Conversations); HubSpot Owner id/email</td></tr>
+<tr><th>How it's actually used</th><td>
+  Supports Contact Gate: a reverse-quarantine tool for Contacts HubSpot auto-creates from unknown Conversations/Help Desk senders. On a <code>contact.creation</code> webhook, CleanMerge checks the new Contact's source label &mdash; if it's Conversations and the portal's policy says to quarantine it, the Contact is archived within seconds and held in a review queue for a human to promote or discard, rather than staying in the CRM. Every portal defaults to a dry-run mode (log the decision, never delete) until manually confirmed safe for that account. Owners are only used to bulk-seed an allowlist of staff email addresses, on request.<br><br>
+  Kept optional rather than required because most installers only use the free workflow action and never touch Contact Gate &mdash; this scope is only requested when walking a specific customer through setup for this feature, not from every installer by default.
+</td></tr>
+</table>
+
 <h2>If/when this becomes installer-facing</h2>
 <p>The review queue, merge executor, and warehouse-ingest configuration are all real and deployed, but reachable only by CleanMerge's operator via internal admin endpoints today — not by installers. If/when any of these become self-serve, this page should be updated to reflect installers configuring and triggering them directly, rather than requesting it on their behalf.</p>
 

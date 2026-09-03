@@ -124,3 +124,35 @@ export async function listAllObjects(
 
   return results;
 }
+
+export interface HubSpotOwner {
+  id: string;
+  email: string;
+}
+
+interface OwnersListResponse {
+  results: Array<{ id: string; email: string; archived?: boolean }>;
+  paging?: { next?: { after: string } };
+}
+
+/** Enumerates every (non-archived) HubSpot user/owner in the portal — used to seed an allowlist with staff email addresses. */
+export async function listOwners(accessToken: string): Promise<HubSpotOwner[]> {
+  const results: HubSpotOwner[] = [];
+  let after: string | undefined;
+
+  do {
+    const url = new URL("https://api.hubapi.com/crm/v3/owners");
+    url.searchParams.set("limit", "100");
+    if (after) url.searchParams.set("after", after);
+
+    const response = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+    if (!response.ok) throw new Error(`HubSpot list owners failed (${response.status}): ${await response.text()}`);
+    const data = (await response.json()) as OwnersListResponse;
+    for (const owner of data.results) {
+      if (!owner.archived && owner.email) results.push({ id: owner.id, email: owner.email });
+    }
+    after = data.paging?.next?.after;
+  } while (after);
+
+  return results;
+}
