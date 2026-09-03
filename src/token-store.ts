@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import type { Pool } from "pg";
+import { decryptSecret, encryptSecret } from "./crypto.js";
 import { createPool } from "./db.js";
 import type { OAuthTokens } from "./types.js";
 
@@ -7,25 +7,6 @@ export interface TokenStore {
   initialize(): Promise<void>;
   get(portalId: number): Promise<OAuthTokens | null>;
   set(portalId: number, tokens: OAuthTokens): Promise<void>;
-}
-
-function keyFromSecret(secret: string): Buffer {
-  const decoded = Buffer.from(secret, "base64");
-  return decoded.length === 32 ? decoded : crypto.createHash("sha256").update(secret).digest();
-}
-
-function encrypt(value: OAuthTokens, secret: string): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", keyFromSecret(secret), iv);
-  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
-  return [iv, cipher.getAuthTag(), ciphertext].map((part) => part.toString("base64url")).join(".");
-}
-
-function decrypt(value: string, secret: string): OAuthTokens {
-  const [iv, tag, ciphertext] = value.split(".").map((part) => Buffer.from(part, "base64url"));
-  const decipher = crypto.createDecipheriv("aes-256-gcm", keyFromSecret(secret), iv);
-  decipher.setAuthTag(tag);
-  return JSON.parse(Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8")) as OAuthTokens;
 }
 
 export class PostgresTokenStore implements TokenStore {
@@ -42,13 +23,13 @@ export class PostgresTokenStore implements TokenStore {
   }
   async get(portalId: number): Promise<OAuthTokens | null> {
     const result = await this.pool.query<{ encrypted_tokens: string }>("SELECT encrypted_tokens FROM hubspot_oauth_tokens WHERE portal_id = $1", [portalId]);
-    return result.rows[0] ? decrypt(result.rows[0].encrypted_tokens, this.encryptionKey) : null;
+    return result.rows[0] ? decryptSecret<OAuthTokens>(result.rows[0].encrypted_tokens, this.encryptionKey) : null;
   }
   async set(portalId: number, tokens: OAuthTokens): Promise<void> {
     await this.pool.query(
       `INSERT INTO hubspot_oauth_tokens (portal_id, encrypted_tokens) VALUES ($1, $2)
        ON CONFLICT (portal_id) DO UPDATE SET encrypted_tokens = EXCLUDED.encrypted_tokens, updated_at = NOW()`,
-      [portalId, encrypt(tokens, this.encryptionKey)],
+      [portalId, encryptSecret(tokens, this.encryptionKey)],
     );
   }
 }
