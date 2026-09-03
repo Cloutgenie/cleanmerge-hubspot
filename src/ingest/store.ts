@@ -106,12 +106,14 @@ export class IngestStore {
   }
 
   async createConnection(portalId: number, name: string, connectorType: string, config: Record<string, unknown>, credentials: string): Promise<number> {
-    const result = await this.pool.query<{ id: number }>(
+    // pg returns bigint columns (including BIGSERIAL ids) as strings to avoid precision loss —
+    // coerce back to number here so every caller can rely on the number type this returns.
+    const result = await this.pool.query<{ id: string }>(
       `INSERT INTO warehouse_connections (portal_id, name, connector_type, config, encrypted_credentials)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [portalId, name, connectorType, JSON.stringify(config), encryptSecret(credentials, this.encryptionKey)],
     );
-    return result.rows[0].id;
+    return Number(result.rows[0].id);
   }
 
   async updateConnection(id: number, config?: Record<string, unknown>, credentials?: string): Promise<void> {
@@ -122,7 +124,7 @@ export class IngestStore {
   /** Never includes credentials — for listing/display only. */
   async listConnections(portalId: number): Promise<Array<Omit<WarehouseConnectionRow, "credentials">>> {
     const result = await this.pool.query(`SELECT id, portal_id, name, connector_type, config FROM warehouse_connections WHERE portal_id = $1 ORDER BY name`, [portalId]);
-    return result.rows.map((r) => ({ id: r.id, portalId: r.portal_id, name: r.name, connectorType: r.connector_type, config: r.config }));
+    return result.rows.map((r) => ({ id: Number(r.id), portalId: Number(r.portal_id), name: r.name, connectorType: r.connector_type, config: r.config }));
   }
 
   /** Includes decrypted credentials — internal engine use only, never returned from an HTTP response. */
@@ -131,8 +133,8 @@ export class IngestStore {
     const row = result.rows[0];
     if (!row) return null;
     return {
-      id: row.id,
-      portalId: row.portal_id,
+      id: Number(row.id),
+      portalId: Number(row.portal_id),
       name: row.name,
       connectorType: row.connector_type,
       config: row.config,
@@ -163,11 +165,11 @@ export class IngestStore {
   }
 
   async startRun(portalId: number, connectionId: number, objectType: ObjectType, triggeredBy: string): Promise<number> {
-    const result = await this.pool.query<{ id: number }>(
+    const result = await this.pool.query<{ id: string }>(
       `INSERT INTO ingest_runs (portal_id, connection_id, object_type, triggered_by) VALUES ($1, $2, $3, $4) RETURNING id`,
       [portalId, connectionId, objectType, triggeredBy],
     );
-    return result.rows[0].id;
+    return Number(result.rows[0].id);
   }
 
   async finishRun(runId: number, status: "succeeded" | "failed", counts: IngestRunCounts): Promise<void> {
@@ -184,9 +186,9 @@ export class IngestStore {
       ? await this.pool.query(`SELECT * FROM ingest_runs WHERE portal_id = $1 AND connection_id = $2 ORDER BY started_at DESC LIMIT $3`, [portalId, connectionId, limit])
       : await this.pool.query(`SELECT * FROM ingest_runs WHERE portal_id = $1 ORDER BY started_at DESC LIMIT $2`, [portalId, limit]);
     return result.rows.map((r) => ({
-      id: r.id,
-      portalId: r.portal_id,
-      connectionId: r.connection_id,
+      id: Number(r.id),
+      portalId: Number(r.portal_id),
+      connectionId: Number(r.connection_id),
       objectType: r.object_type,
       triggeredBy: r.triggered_by,
       status: r.status,
@@ -209,8 +211,8 @@ export class IngestStore {
 
 function mapMappingRow(r: Record<string, unknown>): FieldMappingRow {
   return {
-    id: r.id as number,
-    connectionId: r.connection_id as number,
+    id: Number(r.id),
+    connectionId: Number(r.connection_id),
     objectType: r.object_type as ObjectType,
     sourceQuery: r.source_query as string,
     mappings: r.mappings as FieldMappingEntry[],
