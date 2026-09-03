@@ -279,6 +279,24 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       }
     });
 
+    app.delete("/internal/ingest/connections/:id", async (req, res) => {
+      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const id = Number(req.params.id);
+      const portalId = Number(req.body?.portalId);
+      if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(portalId) || portalId <= 0) {
+        res.status(400).json({ error: "A valid connection id and portalId (in the request body) are required" });
+        return;
+      }
+      try {
+        const deleted = await ingest.ingestStore.deleteConnection(id, portalId);
+        if (!deleted) { res.status(404).json({ error: "No connection with that id found for this portal" }); return; }
+        res.status(200).json({ deleted: true });
+      } catch (error) {
+        console.error("Delete warehouse connection failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Delete warehouse connection failed" });
+      }
+    });
+
     app.get("/internal/ingest/connections", async (req, res) => {
       if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
       const portalId = Number(req.query.portalId);

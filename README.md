@@ -40,6 +40,7 @@ Pulls rows from a customer's SQL-queryable warehouse (Databricks SQL Warehouses 
 
 - `POST /internal/ingest/connections` — register a warehouse connection (`portalId`, `name`, `connectorType`, `config`, `credentials`). Credentials are AES-256-GCM encrypted at rest and never returned by any `GET`.
 - `PUT /internal/ingest/connections/:id` — rotate credentials or update config.
+- `DELETE /internal/ingest/connections/:id` — remove a connection, its mappings, and its run history (`portalId` required in the body, to confirm ownership).
 - `GET /internal/ingest/connections?portalId=` — list connections for a portal.
 - `POST /internal/ingest/mappings` — define the fixed source query, field mappings, and match-key columns for one object type on a connection.
 - `POST /internal/ingest/run` — trigger a run (`portalId`, `connectionId`); returns per-object-type counts of rows created/updated/queued-for-review/errored.

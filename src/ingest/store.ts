@@ -121,6 +121,15 @@ export class IngestStore {
     if (credentials) await this.pool.query(`UPDATE warehouse_connections SET encrypted_credentials = $2, updated_at = NOW() WHERE id = $1`, [id, encryptSecret(credentials, this.encryptionKey)]);
   }
 
+  /** Removes the connection, its field mappings (ON DELETE CASCADE), and its run history. Returns false if no connection with that id belonged to the portal. */
+  async deleteConnection(id: number, portalId: number): Promise<boolean> {
+    const owned = await this.pool.query(`SELECT 1 FROM warehouse_connections WHERE id = $1 AND portal_id = $2`, [id, portalId]);
+    if (owned.rowCount === 0) return false;
+    await this.pool.query(`DELETE FROM ingest_runs WHERE connection_id = $1`, [id]);
+    await this.pool.query(`DELETE FROM warehouse_connections WHERE id = $1`, [id]);
+    return true;
+  }
+
   /** Never includes credentials — for listing/display only. */
   async listConnections(portalId: number): Promise<Array<Omit<WarehouseConnectionRow, "credentials">>> {
     const result = await this.pool.query(`SELECT id, portal_id, name, connector_type, config FROM warehouse_connections WHERE portal_id = $1 ORDER BY name`, [portalId]);
