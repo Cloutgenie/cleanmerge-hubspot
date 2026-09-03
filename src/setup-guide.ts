@@ -2,10 +2,12 @@
  * Public setup documentation, required for HubSpot Marketplace listing (and certification later):
  * https://developers.hubspot.com/docs/apps/developer-platform/list-apps/listing-your-app/create-an-app-listing-setup-guide
  *
- * Deliberately documents only what an installer can self-serve use today (the workflow action).
- * The dedup engine (scan/review/merge) is real and deployed, but only reachable via an internal
- * admin endpoint — not something an installing customer can use yet — so it's left out here
- * rather than describing a feature that wouldn't work for the reader.
+ * The install/configure/use/disconnect/uninstall steps below document only what an installer can
+ * self-serve today (the workflow action) — the dedup engine and Warehouse Sync are real and
+ * deployed, but reachable only via internal admin endpoints, not something an installing customer
+ * can trigger themselves yet. The intro section is the exception: it names Warehouse Sync as the
+ * flagship offering (see /docs/pricing) even though getting it set up starts with an email, not
+ * a self-serve flow, so a reader isn't left thinking the free action is the whole product.
  */
 export function renderSetupGuide(installUrl: string): string {
   return `<!doctype html>
@@ -102,12 +104,13 @@ export function renderSetupGuide(installUrl: string): string {
 <body>
 
 <h1>Setup guide for CleanMerge</h1>
-<p class="lede">CleanMerge adds a custom workflow action to HubSpot that normalizes CRM field values — names, phone numbers, and domains — directly inside your existing workflows. This lets you:</p>
+<p class="lede">CleanMerge keeps HubSpot in sync with the rest of your stack. The flagship offering is <strong>Warehouse Sync</strong> — pulling data from your warehouse into HubSpot Contacts and Companies without creating duplicates, using the same fuzzy/AI matching described on our <a href="/docs/pricing">pricing page</a>. This guide covers the free piece anyone can install today: a workflow action that normalizes CRM field values &mdash; names, phone numbers, and domains &mdash; directly inside your existing workflows.</p>
 <ul>
   <li>Automatically title-case contact and company names as part of a lead-routing or import workflow.</li>
   <li>Extract a clean root domain from a website URL for company matching or segmentation.</li>
   <li>Convert phone numbers to a consistent E.164 format before sending them to SMS or calling tools.</li>
 </ul>
+<p>Want the full Warehouse Sync setup? See <a href="/docs/pricing">Pricing</a> or email <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a> &mdash; it's a managed setup, not a self-serve toggle, so it starts with a conversation rather than an install button.</p>
 
 <h2>Install the app</h2>
 <ol>
@@ -116,7 +119,7 @@ export function renderSetupGuide(installUrl: string): string {
   </li>
   <li>You'll be redirected to HubSpot's account chooser. Select the HubSpot account you want to connect.</li>
   <li>Review the requested scopes on the consent screen.
-    <div class="callout"><strong>Scopes requested:</strong> a base identity scope to connect your account, plus read/write access to Companies and Contacts (used by CleanMerge's data-hygiene tooling; the workflow action itself does not read or write CRM records directly).</div>
+    <div class="callout"><strong>Scopes requested:</strong> a base identity scope to connect your account, plus read/write access to Companies and Contacts. These support the internal duplicate-matching engine and Warehouse Sync (see <a href="/docs/shared-data">Shared Data</a> for exactly how) &mdash; the free workflow action itself does not read or write CRM records directly.</div>
   </li>
   <li>Click <strong>Connect app</strong>.</li>
   <li>You'll land on a confirmation page reading "CleanMerge is connected." Installation is complete.</li>
@@ -147,6 +150,10 @@ export function renderSetupGuide(installUrl: string): string {
   <li>Save the workflow.</li>
 </ol>
 <p>When a record reaches this step, CleanMerge runs the transformation and returns the result as <strong>Normalized text</strong>, which later workflow actions (e.g. "Set property value") can use. If a value can't be transformed (e.g. an unparseable phone number), CleanMerge returns the original value with an error status rather than failing the workflow.</p>
+
+<h2>Warehouse Sync (managed)</h2>
+<p>Warehouse Sync pulls rows from your data warehouse into HubSpot Contacts and Companies on a schedule. Every incoming row is checked against your existing HubSpot records with the same fuzzy/AI matching CleanMerge's duplicate-detection engine uses &mdash; confident matches update the existing record, ambiguous ones are queued for a quick human approve/reject, and only genuinely new rows create a new record. See <a href="/docs/pricing">Pricing</a> for what's included.</p>
+<p>This isn't a self-serve toggle yet: setup means emailing <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a>, telling us what warehouse and data you want synced, and we configure the connection and field mapping with you directly.</p>
 
 <h2>Disconnect the app</h2>
 <div class="callout"><strong>Note:</strong> Disconnecting CleanMerge stops the workflow action from running in any workflow that uses it. Property values CleanMerge already set are not changed or removed.</div>

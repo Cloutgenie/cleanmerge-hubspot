@@ -85,7 +85,7 @@ export function renderTermsOfService(): string {
 </ul>
 
 <h2>4. Fees</h2>
-<p>CleanMerge is currently provided free of charge. If we introduce paid plans in the future, we will update this section and provide notice before any charges apply to your account.</p>
+<p>The CleanMerge workflow action described in our <a href="/docs/setup">setup guide</a> is provided free of charge, with no automatic billing. Warehouse Sync (see <a href="/docs/pricing">Pricing</a>) is a separately-scoped, quote-based service arranged directly with you before any setup begins — it is never billed automatically through the app, and no charge applies until pricing has been confirmed with you in writing.</p>
 
 <h2>5. Data</h2>
 <p>Our collection and use of data through the Service is described in our <a href="/docs/privacy">Privacy Policy</a>, which is incorporated into these Terms by reference.</p>
