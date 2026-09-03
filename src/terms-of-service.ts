@@ -108,7 +108,7 @@ export function renderTermsOfService(): string {
 <h2>11. Contact</h2>
 <p>Questions about these Terms can be sent to <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a>.</p>
 
-<footer>CleanMerge &middot; <a href="/docs/privacy">Privacy Policy</a></footer>
+<footer>CleanMerge &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/privacy">Privacy Policy</a></footer>
 </body>
 </html>`;
 }
