@@ -10,8 +10,10 @@ import { renderReviewPage, renderReviewScript } from "./dedup/review-ui.js";
 import type { DedupStore, ReviewDecision } from "./dedup/store.js";
 import { oauthHandlers } from "./oauth.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
+import { renderPrivacyPolicy } from "./privacy-policy.js";
 import { renderSetupGuide } from "./setup-guide.js";
 import { renderSharedDataGuide } from "./shared-data-guide.js";
+import { renderTermsOfService } from "./terms-of-service.js";
 import type { OAuthTokenManager } from "./token-manager.js";
 import type { TokenStore } from "./token-store.js";
 import { transform } from "./transformations.js";
@@ -57,6 +59,14 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
 
   app.get("/docs/shared-data", (_req, res) => {
     res.status(200).type("html").send(renderSharedDataGuide());
+  });
+
+  app.get("/docs/privacy", (_req, res) => {
+    res.status(200).type("html").send(renderPrivacyPolicy());
+  });
+
+  app.get("/docs/terms", (_req, res) => {
+    res.status(200).type("html").send(renderTermsOfService());
   });
 
   app.post("/api/hubspot/action", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), (req, res) => {
