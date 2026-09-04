@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
 import type { Config } from "./config.js";
+import type { PairingStore } from "./pairing-store.js";
+import { generatePairingCode, pairingCodeExpiry } from "./session.js";
 import type { TokenStore } from "./token-store.js";
 import type { OAuthTokens } from "./types.js";
 
@@ -37,7 +39,7 @@ async function exchangeCode(code: string, config: Config): Promise<OAuthTokens> 
   return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: Date.now() + data.expires_in * 1000, hubId: data.hub_id, scopes: data.scopes ?? [] };
 }
 
-export function oauthHandlers(config: Config, store: TokenStore) {
+export function oauthHandlers(config: Config, store: TokenStore, pairingStore?: PairingStore) {
   return {
     install(_req: Request, res: Response): void {
       const params: Record<string, string> = {
@@ -67,7 +69,17 @@ export function oauthHandlers(config: Config, store: TokenStore) {
         const tokens = await exchangeCode(code, config);
         if (!tokens.hubId) { res.status(502).json({ error: "HubSpot did not return a portal ID" }); return; }
         await store.set(tokens.hubId, tokens);
-        res.status(200).type("html").send("<!doctype html><title>CleanMerge installed</title><h1>CleanMerge is connected.</h1><p>You may close this window.</p>");
+
+        let pairingHtml = "<p>You may close this window.</p>";
+        if (pairingStore) {
+          const pairingCode = generatePairingCode();
+          await pairingStore.create(pairingCode, tokens.hubId, pairingCodeExpiry());
+          pairingHtml = `
+            <p>To finish setup, open HubSpot &rarr; Settings &rarr; Apps &rarr; CleanMerge and enter this code:</p>
+            <p style="font-size:1.8rem;font-weight:700;letter-spacing:0.08em;font-family:monospace">${pairingCode}</p>
+            <p>This code expires in 15 minutes. You may close this window once you've entered it.</p>`;
+        }
+        res.status(200).type("html").send(`<!doctype html><title>CleanMerge installed</title><h1>CleanMerge is connected.</h1>${pairingHtml}`);
       } catch (error) {
         console.error("OAuth callback failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Could not complete HubSpot OAuth" });

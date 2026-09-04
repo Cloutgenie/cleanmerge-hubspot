@@ -17,11 +17,13 @@ import { PostgresConnector } from "./ingest/connectors/postgres.js";
 import type { WarehouseConnector } from "./ingest/connector.js";
 import type { FieldMappingEntry, IngestStore, ObjectType, WarehouseConnectionRow } from "./ingest/store.js";
 import { oauthHandlers } from "./oauth.js";
+import type { PairingStore } from "./pairing-store.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
 import { renderPricing } from "./pricing.js";
 import { renderPrivacyPolicy } from "./privacy-policy.js";
 import { renderSetupGuide } from "./setup-guide.js";
 import { renderSharedDataGuide } from "./shared-data-guide.js";
+import { signSessionToken, verifySessionToken } from "./session.js";
 import { renderTermsOfService } from "./terms-of-service.js";
 import type { OAuthTokenManager } from "./token-manager.js";
 import type { TokenStore } from "./token-store.js";
@@ -58,6 +60,26 @@ function isAuthorizedAdmin(req: Request, adminToken: string | undefined): boolea
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
+/** Verifies a self-serve portal session bearer token and returns the portal id it's scoped to, or null. */
+function authorizedPortalSession(req: Request, config: Config): number | null {
+  const token = req.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  if (!token) return null;
+  return verifySessionToken(config, token);
+}
+
+/**
+ * True if the request is either an admin call (operator token, any portal) or a self-serve session
+ * call whose verified portal id matches `claimedPortalId`. A session can never authorize acting on a
+ * portal other than its own — `claimedPortalId` must come from the same verified source the route
+ * would otherwise trust (e.g. a body/query portalId for the admin path), never re-derived from the
+ * session token's own claim after the fact.
+ */
+function isAuthorizedAdminOrSession(req: Request, config: Config, claimedPortalId: number): boolean {
+  if (isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) return true;
+  const sessionPortalId = authorizedPortalSession(req, config);
+  return sessionPortalId !== null && sessionPortalId === claimedPortalId;
+}
+
 const executionSchema = z.object({
   callbackId: z.string().min(1),
   inputFields: z.object({
@@ -66,17 +88,35 @@ const executionSchema = z.object({
   }),
 }).passthrough();
 
-export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps): Express {
+export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps, pairingStore?: PairingStore): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(helmet());
   app.use(express.json({ limit: "256kb", verify: (req, _res, buffer) => { (req as RawBodyRequest).rawBody = Buffer.from(buffer); } }));
 
-  const oauth = oauthHandlers(config, tokenStore);
+  const oauth = oauthHandlers(config, tokenStore, pairingStore);
   app.get("/oauth/install", oauth.install);
   app.get("/oauth/callback", oauth.callback);
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+
+  if (pairingStore) {
+    // Public by design (no admin token) — the pairing code itself, minted only at the end of a real
+    // OAuth install, is the credential. Single-use and 15-minute expiry (enforced in pairing-store.ts)
+    // bound the exposure of an unauthenticated endpoint.
+    app.post("/internal/pairing/claim", async (req, res) => {
+      const code = typeof req.body?.code === "string" ? req.body.code.trim().toUpperCase() : "";
+      if (!code) { res.status(400).json({ error: "code is required" }); return; }
+      try {
+        const hubId = await pairingStore.claim(code);
+        if (hubId === null) { res.status(400).json({ error: "Invalid, expired, or already-used code" }); return; }
+        res.status(200).json({ sessionToken: signSessionToken(config, hubId), portalId: hubId });
+      } catch (error) {
+        console.error("Pairing claim failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Pairing claim failed" });
+      }
+    });
+  }
 
   app.get("/docs/setup", (_req, res) => {
     res.status(200).type("html").send(renderSetupGuide(`${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/install`));
@@ -173,10 +213,38 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       }
     });
 
+    // Self-serve equivalent of the route above, reachable with a portal session token (not the admin
+    // token). Deliberately does NOT accept a `dryRun` field at all — it is always forced true, so a
+    // bug in the settings-page UI (or a compromised browser session) can never enable live deletion.
+    // Only the admin route above, gated by the operator's own INTERNAL_ADMIN_TOKEN, can do that, once
+    // Contact Gate's sandbox premise is actually confirmed for a given portal.
+    app.put("/internal/contact-gate/policy/self-serve", async (req, res) => {
+      const portalId = Number(req.body?.portalId);
+      const policy: ContactGatePolicy = req.body?.policy;
+      if (
+        !Number.isInteger(portalId) || portalId <= 0 ||
+        !["never_create", "allowlist_only", "quarantine", "create"].includes(policy) ||
+        !isAuthorizedAdminOrSession(req, config, portalId)
+      ) {
+        res.status(401).json({ error: "Unauthorized, or portalId/policy invalid" });
+        return;
+      }
+      try {
+        await contactGate.contactGateStore.setPolicy(portalId, policy, true);
+        await contactGate.contactGateStore.recordAudit({ portalId, actor: "self-serve", action: "policy_change", target: { policy, dryRun: true } });
+        res.status(200).json({ saved: true });
+      } catch (error) {
+        console.error("Set Contact Gate self-serve policy failed", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: "Set Contact Gate policy failed" });
+      }
+    });
+
     app.get("/internal/contact-gate/policy", async (req, res) => {
-      if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
       const portalId = Number(req.query.portalId);
-      if (!Number.isInteger(portalId) || portalId <= 0) { res.status(400).json({ error: "portalId must be a positive integer" }); return; }
+      if (!Number.isInteger(portalId) || portalId <= 0 || !isAuthorizedAdminOrSession(req, config, portalId)) {
+        res.status(401).json({ error: "Unauthorized, or portalId invalid" });
+        return;
+      }
       try {
         res.status(200).json(await contactGate.contactGateStore.getPolicy(portalId));
       } catch (error) {
