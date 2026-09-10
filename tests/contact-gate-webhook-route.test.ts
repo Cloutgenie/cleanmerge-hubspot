@@ -66,4 +66,22 @@ describe("POST /webhooks/hubspot", () => {
     expect(contactGateStore.getPolicy).toHaveBeenCalledWith(42);
     expect(contactGateStore.recordQuarantine).toHaveBeenCalledWith(expect.objectContaining({ contactId: "500", actionTaken: "logged_only" }));
   });
+
+  it("accepts the real delivered payload shape (objectTypeId, no objectType field)", async () => {
+    // Confirmed live 2026-09-10 against portal 246383893: HubSpot's actual object.creation payload
+    // has no `objectType` field at all — only `objectTypeId: "0-1"` for Contacts. This regression
+    // test is what would have caught the bug where every real event was silently ignored.
+    const { app, contactGateStore } = buildApp();
+    const body = [{
+      subscriptionType: "object.creation", objectTypeId: "0-1", portalId: 42, objectId: 500,
+      eventId: 1, subscriptionId: 1, appId: 1, attemptNumber: 0, changeFlag: "CREATED", changeSource: "CONVERSATIONS",
+    }];
+    const { timestamp, signature, raw } = signed(body, "/webhooks/hubspot");
+    const response = await request(app).post("/webhooks/hubspot").set("host", "example.com").set("x-forwarded-proto", "https")
+      .set("x-hubspot-request-timestamp", timestamp).set("x-hubspot-signature-v3", signature).set("content-type", "application/json").send(raw);
+    expect(response.status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(contactGateStore.getPolicy).toHaveBeenCalledWith(42);
+    expect(contactGateStore.recordQuarantine).toHaveBeenCalledWith(expect.objectContaining({ contactId: "500", actionTaken: "logged_only" }));
+  });
 });

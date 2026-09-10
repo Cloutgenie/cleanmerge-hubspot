@@ -157,11 +157,14 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   if (contactGate) {
     // HubSpot's webhooks component delivers every subscribed event type to this one URL
     // (see cleanmerge-hubspot-app's webhooks-hsmeta.json — one webhooks component per project),
-    // as a batch array; each event carries its own subscriptionType/portalId/objectId. The exact
-    // delivered field shape hasn't been confirmed against a live payload yet (see plan Phase 0
-    // step 3), so subscriptionType is matched loosely (contains "contact" and "creat") rather than
-    // an exact string, and any event that doesn't parse is skipped (logged) rather than crashing
-    // the batch — HubSpot expects a fast 200 regardless.
+    // as a batch array; each event carries its own subscriptionType/portalId/objectId. Confirmed
+    // against real live payloads (2026-09-10, portal 246383893): the modern declarative format
+    // (what this project's webhooks-hsmeta.json actually uses) sends `subscriptionType:
+    // "object.creation"` with NO `objectType` field at all — the object type is `objectTypeId`,
+    // HubSpot's internal numeric-ID string ("0-1" for Contact), not a friendly name. The earlier
+    // `objectType === "contact"` check was always false against a real payload, which is why every
+    // genuine contact-creation event was silently skipped from day one — this was a bug in our own
+    // detection, not a HubSpot platform limitation.
     app.post("/webhooks/hubspot", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), async (req, res) => {
       res.status(200).json({ received: true }); // ack immediately; HubSpot retries on non-2xx
       const events = Array.isArray(req.body) ? req.body : [req.body];
@@ -169,16 +172,16 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
         try {
           const subscriptionType = String(event?.subscriptionType ?? "").toLocaleLowerCase("en-US");
           const objectType = String(event?.objectType ?? "").toLocaleLowerCase("en-US");
-          // Two possible delivered shapes (see plan's Phase 0 note): legacy dotted strings like
-          // "contact.creation" carry the object type IN subscriptionType; the modern declarative
-          // format (what this project's webhooks-hsmeta.json actually uses) sends a generic
-          // "object.creation" with the object type in a separate `objectType` field.
+          const objectTypeId = String(event?.objectTypeId ?? "");
+          // Legacy dotted strings like "contact.creation" carry the object type IN subscriptionType.
+          // The modern format carries it as objectTypeId ("0-1" = Contact); objectType is kept as a
+          // fallback in case a future delivery shape ever sends a friendly name instead.
           const isLegacyContactCreation = subscriptionType.includes("contact") && subscriptionType.includes("creat");
-          const isModernContactCreation = subscriptionType === "object.creation" && objectType === "contact";
+          const isModernContactCreation = subscriptionType === "object.creation" && (objectTypeId === "0-1" || objectType === "contact");
           const isContactCreation = isLegacyContactCreation || isModernContactCreation;
           const portalId = Number(event?.portalId);
           const objectId = event?.objectId != null ? String(event.objectId) : undefined;
-          console.log("Contact Gate webhook event received", { subscriptionType, objectType, portalId, objectId, isContactCreation, raw: event });
+          console.log("Contact Gate webhook event received", { subscriptionType, objectType, objectTypeId, portalId, objectId, isContactCreation, raw: event });
           if (!isContactCreation || !Number.isInteger(portalId) || portalId <= 0 || !objectId) continue;
 
           const accessToken = await contactGate.tokenManager.getAccessToken(portalId);
