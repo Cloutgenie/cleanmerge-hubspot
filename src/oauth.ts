@@ -70,16 +70,16 @@ export function oauthHandlers(config: Config, store: TokenStore, pairingStore?: 
         if (!tokens.hubId) { res.status(502).json({ error: "HubSpot did not return a portal ID" }); return; }
         await store.set(tokens.hubId, tokens);
 
-        let pairingHtml = "<p>You may close this window.</p>";
+        // The pairing code is still minted and stored (harmless, unused otherwise) so the backend
+        // stays exercised, but it is NOT shown to installers: the settings-page UI extension that
+        // would consume it (Settings -> Apps -> CleanMerge -> enter code) hasn't been built yet.
+        // Showing "enter this code" instructions pointing at a screen that doesn't exist would be a
+        // dead end for every real installer -- surface it only once that UI actually ships.
         if (pairingStore) {
           const pairingCode = generatePairingCode();
           await pairingStore.create(pairingCode, tokens.hubId, pairingCodeExpiry());
-          pairingHtml = `
-            <p>To finish setup, open HubSpot &rarr; Settings &rarr; Apps &rarr; CleanMerge and enter this code:</p>
-            <p style="font-size:1.8rem;font-weight:700;letter-spacing:0.08em;font-family:monospace">${pairingCode}</p>
-            <p>This code expires in 15 minutes. You may close this window once you've entered it.</p>`;
         }
-        res.status(200).type("html").send(`<!doctype html><title>CleanMerge installed</title><h1>CleanMerge is connected.</h1>${pairingHtml}`);
+        res.status(200).type("html").send(`<!doctype html><title>CleanMerge installed</title><h1>CleanMerge is connected.</h1><p>You may close this window.</p>`);
       } catch (error) {
         console.error("OAuth callback failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Could not complete HubSpot OAuth" });
