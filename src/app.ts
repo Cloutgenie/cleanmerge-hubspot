@@ -152,10 +152,18 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   app.post("/api/hubspot/action", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), (req, res) => {
     const parsed = executionSchema.safeParse(req.body);
     if (!parsed.success) {
+      console.error("Workflow action execution: invalid payload", { body: req.body });
       res.status(200).json({ outputFields: { outputText: "", status: "ERROR: Invalid workflow action payload" } });
       return;
     }
+    // The exact top-level shape HubSpot delivers here hasn't been captured from a real invocation
+    // yet (unlike /webhooks/hubspot, confirmed live 2026-09-10) — `origin.portalId` is the documented
+    // field for classic custom-code workflow actions, read defensively since it's unconfirmed for
+    // this project's actual delivery. This log is the source of truth for real per-portal usage,
+    // needed to verify Marketplace-listing "active install" activity (not just OAuth completion).
+    const portalId = (parsed.data as { origin?: { portalId?: number } }).origin?.portalId;
     const { inputText, transformationType } = parsed.data.inputFields;
+    console.log("Workflow action executed", { portalId, transformationType, callbackId: parsed.data.callbackId, raw: req.body });
     try {
       const outputText = transform(inputText, transformationType);
       res.status(200).json({ outputFields: { outputText, status: "SUCCESS" } });
