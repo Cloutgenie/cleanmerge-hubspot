@@ -117,11 +117,11 @@ export function renderPrivacyPolicy(): string {
 </ul>
 
 <div class="callout">
-<strong>Data deletion:</strong> Uninstalling CleanMerge from HubSpot immediately stops it from accessing your data going forward, but does not automatically delete data already stored (OAuth tokens and duplicate-candidate records). To request deletion, email us at <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a> and we will delete it. We are working toward automatic deletion on uninstall; until then, deletion requests are handled manually.
+<strong>Data deletion:</strong> Uninstalling CleanMerge from HubSpot immediately stops it from accessing your data going forward, but does not automatically delete data already stored (OAuth tokens and duplicate-candidate records). To request deletion, email us at <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> and we will delete it. We are working toward automatic deletion on uninstall; until then, deletion requests are handled manually.
 </div>
 
 <h2>Your rights</h2>
-<p>You can request a copy of the data we hold about your portal, or request its deletion, at any time by emailing <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a>.</p>
+<p>You can request a copy of the data we hold about your portal, or request its deletion, at any time by emailing <a href="mailto:jay@kinetify.com">jay@kinetify.com</a>.</p>
 
 <h2>Children's privacy</h2>
 <p>CleanMerge is a business tool intended for use by HubSpot customers and is not directed at children. We do not knowingly collect data from children.</p>
@@ -129,7 +129,7 @@ export function renderPrivacyPolicy(): string {
 <h2>Changes to this policy</h2>
 <p>If we change what data we collect or how we use it, we will update this page and revise the effective date above.</p>
 
-<footer>CleanMerge &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/terms">Terms of Service</a> &middot; Questions? <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a></footer>
+<footer>CleanMerge &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/terms">Terms of Service</a> &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a></footer>
 </body>
 </html>`;
 }

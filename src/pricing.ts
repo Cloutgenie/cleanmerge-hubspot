@@ -133,7 +133,7 @@ export function renderPricing(installUrl: string): string {
       <li>Run on your schedule — hourly to weekly.</li>
       <li>White-glove setup: we configure the connection and mappings with you. There's no self-serve UI for this yet, so pricing reflects real setup and monitoring, not a flip-a-switch SaaS tier.</li>
     </ul>
-    <div><a class="contact-btn" href="mailto:jgauthier@taskdropoff.com?subject=CleanMerge%20Warehouse%20Sync">Talk to us about Warehouse Sync</a></div>
+    <div><a class="contact-btn" href="mailto:jay@kinetify.com?subject=CleanMerge%20Warehouse%20Sync">Talk to us about Warehouse Sync</a></div>
   </div>
 
   <div class="plan">
@@ -155,7 +155,7 @@ export function renderPricing(installUrl: string): string {
 <strong>No surprise charges:</strong> per our <a href="/docs/terms">Terms of Service</a>, nothing above the Free plan is billed automatically — Warehouse Sync starts with a conversation, and any pricing we quote is confirmed before setup begins.
 </div>
 
-<footer>CleanMerge &middot; Questions? <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
+<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
 </body>
 </html>`;
 }

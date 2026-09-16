@@ -110,7 +110,7 @@ export function renderSetupGuide(installUrl: string): string {
   <li>Extract a clean root domain from a website URL for company matching or segmentation.</li>
   <li>Convert phone numbers to a consistent E.164 format before sending them to SMS or calling tools.</li>
 </ul>
-<p>Want the full Warehouse Sync setup? See <a href="/docs/pricing">Pricing</a> or email <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a> &mdash; it's a managed setup, not a self-serve toggle, so it starts with a conversation rather than an install button.</p>
+<p>Want the full Warehouse Sync setup? See <a href="/docs/pricing">Pricing</a> or email <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &mdash; it's a managed setup, not a self-serve toggle, so it starts with a conversation rather than an install button.</p>
 
 <h2>Install the app</h2>
 <ol>
@@ -153,7 +153,7 @@ export function renderSetupGuide(installUrl: string): string {
 
 <h2>Warehouse Sync (managed)</h2>
 <p>Warehouse Sync pulls rows from your data warehouse into HubSpot Contacts and Companies on a schedule. Every incoming row is checked against your existing HubSpot records with the same fuzzy/AI matching CleanMerge's duplicate-detection engine uses &mdash; confident matches update the existing record, ambiguous ones are queued for a quick human approve/reject, and only genuinely new rows create a new record. See <a href="/docs/pricing">Pricing</a> for what's included.</p>
-<p>This isn't a self-serve toggle yet: setup means emailing <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a>, telling us what warehouse and data you want synced, and we configure the connection and field mapping with you directly.</p>
+<p>This isn't a self-serve toggle yet: setup means emailing <a href="mailto:jay@kinetify.com">jay@kinetify.com</a>, telling us what warehouse and data you want synced, and we configure the connection and field mapping with you directly.</p>
 
 <h2>Disconnect the app</h2>
 <div class="callout"><strong>Note:</strong> Disconnecting CleanMerge stops the workflow action from running in any workflow that uses it. Property values CleanMerge already set are not changed or removed.</div>
@@ -166,7 +166,7 @@ export function renderSetupGuide(installUrl: string): string {
 <h2>Uninstall the app</h2>
 <p>Removing a connected app in HubSpot (above) also uninstalls it. For general guidance on managing or removing connected apps, see HubSpot's <a href="https://knowledge.hubspot.com/integrations/manage-your-connected-apps" target="_blank" rel="noopener">Manage your connected apps</a> article.</p>
 
-<footer>CleanMerge &middot; Questions? <a href="mailto:jgauthier@taskdropoff.com">jgauthier@taskdropoff.com</a> &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
+<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
 </body>
 </html>`;
 }
