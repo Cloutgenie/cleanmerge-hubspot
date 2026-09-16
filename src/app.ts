@@ -100,6 +100,17 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   app.get("/oauth/callback", oauth.callback);
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
+  app.get("/internal/admin/installs", async (req, res) => {
+    if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+    try {
+      const installs = await tokenStore.listInstalls();
+      res.status(200).json({ count: installs.length, installs });
+    } catch (error) {
+      console.error("List installs failed", error instanceof Error ? error.message : error);
+      res.status(502).json({ error: "List installs failed" });
+    }
+  });
+
   if (pairingStore) {
     // Public by design (no admin token) — the pairing code itself, minted only at the end of a real
     // OAuth install, is the credential. Single-use and 15-minute expiry (enforced in pairing-store.ts)
