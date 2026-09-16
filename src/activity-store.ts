@@ -9,6 +9,8 @@ export interface ActivityStore {
   record(portalId: number, transformationType: string): Promise<void>;
   /** Portals with at least one recorded execution within the last `days` days. */
   listActiveSince(days: number): Promise<ActivePortal[]>;
+  /** Executions recorded for a portal since the start of the current calendar month (UTC). */
+  countThisMonth(portalId: number): Promise<number>;
 }
 
 export class PostgresActivityStore implements ActivityStore {
@@ -37,6 +39,13 @@ export class PostgresActivityStore implements ActivityStore {
     );
     return result.rows.map((r) => ({ portalId: Number(r.portal_id), lastActivityAt: r.last_activity_at }));
   }
+  async countThisMonth(portalId: number): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      "SELECT COUNT(*) AS count FROM action_activity WHERE portal_id = $1 AND executed_at >= date_trunc('month', NOW())",
+      [portalId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
 }
 
 export class MemoryActivityStore implements ActivityStore {
@@ -56,5 +65,10 @@ export class MemoryActivityStore implements ActivityStore {
     return [...latestByPortal.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([portalId, executedAt]) => ({ portalId, lastActivityAt: new Date(executedAt).toISOString() }));
+  }
+  async countThisMonth(portalId: number): Promise<number> {
+    const now = new Date();
+    const startOfMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    return this.events.filter((e) => e.portalId === portalId && e.executedAt >= startOfMonth).length;
   }
 }

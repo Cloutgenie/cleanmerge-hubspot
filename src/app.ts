@@ -81,6 +81,9 @@ function isAuthorizedAdminOrSession(req: Request, config: Config, claimedPortalI
   return sessionPortalId !== null && sessionPortalId === claimedPortalId;
 }
 
+/** Free tier cap, chosen to make Warehouse Sync the obvious next step for real usage. */
+const FREE_TIER_MONTHLY_RUN_LIMIT = 50;
+
 const executionSchema = z.object({
   callbackId: z.string().min(1),
   inputFields: z.object({
@@ -161,7 +164,7 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
     res.status(200).type("html").send(renderTermsOfService());
   });
 
-  app.post("/api/hubspot/action", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), (req, res) => {
+  app.post("/api/hubspot/action", verifyHubSpotSignature(config.HUBSPOT_CLIENT_SECRET), async (req, res) => {
     const parsed = executionSchema.safeParse(req.body);
     if (!parsed.success) {
       console.error("Workflow action execution: invalid payload", { body: req.body });
@@ -176,10 +179,27 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
     const portalId = (parsed.data as { origin?: { portalId?: number } }).origin?.portalId;
     const { inputText, transformationType } = parsed.data.inputFields;
     console.log("Workflow action executed", { portalId, transformationType, callbackId: parsed.data.callbackId, raw: req.body });
+
     if (activityStore && typeof portalId === "number") {
+      try {
+        const usedThisMonth = await activityStore.countThisMonth(portalId);
+        if (usedThisMonth >= FREE_TIER_MONTHLY_RUN_LIMIT) {
+          res.status(200).json({
+            outputFields: {
+              outputText: inputText,
+              status: `ERROR: Free tier limit of ${FREE_TIER_MONTHLY_RUN_LIMIT} runs/month reached. See ${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/docs/pricing for Warehouse Sync.`,
+            },
+          });
+          return;
+        }
+      } catch (error) {
+        // Fail open: a transient DB hiccup shouldn't break every installer's workflow.
+        console.error("Checking free-tier run limit failed", error instanceof Error ? error.message : error);
+      }
       activityStore.record(portalId, transformationType).catch((error) =>
         console.error("Recording action activity failed", error instanceof Error ? error.message : error));
     }
+
     try {
       const outputText = transform(inputText, transformationType);
       res.status(200).json({ outputFields: { outputText, status: "SUCCESS" } });

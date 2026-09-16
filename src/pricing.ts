@@ -140,9 +140,9 @@ export function renderPricing(installUrl: string): string {
     <div class="plan-name">Free</div>
     <div class="plan-price">$0 <span>/ forever</span></div>
     <ul>
-      <li>Unlimited use of the <strong>CleanMerge: Normalize CRM Data</strong> workflow action, in any number of workflows.</li>
+      <li>Up to 50 runs per month of the <strong>CleanMerge: Normalize CRM Data</strong> workflow action, across any number of workflows.</li>
       <li>Proper Case, Uppercase, Lowercase, Extract Domain, Format Phone (E.164), Split First/Last Name transformations.</li>
-      <li>No card required, no per-record or per-workflow-run charges.</li>
+      <li>No card required. Outgrowing 50 runs/month? Warehouse Sync includes unlimited normalization as part of the sync.</li>
     </ul>
     <div><a class="install-btn" href="${installUrl}">Install CleanMerge</a></div>
   </div>
