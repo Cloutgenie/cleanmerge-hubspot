@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import { z } from "zod";
+import type { ActivityStore } from "./activity-store.js";
 import type { Config } from "./config.js";
 import type { AiJudge } from "./dedup/engine.js";
 import { runDedupScan } from "./dedup/engine.js";
@@ -88,7 +89,7 @@ const executionSchema = z.object({
   }),
 }).passthrough();
 
-export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps, pairingStore?: PairingStore): Express {
+export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps, pairingStore?: PairingStore, activityStore?: ActivityStore): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -104,7 +105,18 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
     if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
     try {
       const installs = await tokenStore.listInstalls();
-      res.status(200).json({ count: installs.length, installs });
+      let activeInstalls: { count: number; portals: { portalId: number; lastActivityAt: string }[] } | undefined;
+      if (activityStore) {
+        const installedPortalIds = new Set(installs.map((i) => i.portalId));
+        const excludePortalIds = new Set(
+          (typeof req.query.excludePortalIds === "string" ? req.query.excludePortalIds : "")
+            .split(",").map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n)),
+        );
+        const active = (await activityStore.listActiveSince(30))
+          .filter((a) => installedPortalIds.has(a.portalId) && !excludePortalIds.has(a.portalId));
+        activeInstalls = { count: active.length, portals: active };
+      }
+      res.status(200).json({ count: installs.length, installs, activeInstalls });
     } catch (error) {
       console.error("List installs failed", error instanceof Error ? error.message : error);
       res.status(502).json({ error: "List installs failed" });
@@ -164,6 +176,10 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
     const portalId = (parsed.data as { origin?: { portalId?: number } }).origin?.portalId;
     const { inputText, transformationType } = parsed.data.inputFields;
     console.log("Workflow action executed", { portalId, transformationType, callbackId: parsed.data.callbackId, raw: req.body });
+    if (activityStore && typeof portalId === "number") {
+      activityStore.record(portalId, transformationType).catch((error) =>
+        console.error("Recording action activity failed", error instanceof Error ? error.message : error));
+    }
     try {
       const outputText = transform(inputText, transformationType);
       res.status(200).json({ outputFields: { outputText, status: "SUCCESS" } });

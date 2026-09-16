@@ -1,5 +1,6 @@
 import "dotenv/config";
 import type { Express } from "express";
+import { MemoryActivityStore, PostgresActivityStore, type ActivityStore } from "./activity-store.js";
 import { createApp, type ContactGateDeps, type DedupDeps, type IngestDeps } from "./app.js";
 import { ContactGateStore } from "./contact-gate/store.js";
 import { loadConfig } from "./config.js";
@@ -47,7 +48,10 @@ if (config.DATABASE_URL) {
   contactGate = { tokenManager: new OAuthTokenManager(config, tokenStore), contactGateStore };
 }
 
-const app: Express = createApp(config, tokenStore, dedup, ingest, contactGate, pairingStore);
+const activityStore: ActivityStore = config.DATABASE_URL ? new PostgresActivityStore(config.DATABASE_URL) : new MemoryActivityStore();
+await activityStore.initialize();
+
+const app: Express = createApp(config, tokenStore, dedup, ingest, contactGate, pairingStore, activityStore);
 
 if (process.env.VERCEL !== "1") {
   app.listen(config.PORT, () => console.log(`CleanMerge listening on port ${config.PORT}`));
