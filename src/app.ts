@@ -20,6 +20,7 @@ import type { FieldMappingEntry, IngestStore, ObjectType, WarehouseConnectionRow
 import { oauthHandlers } from "./oauth.js";
 import type { PairingStore } from "./pairing-store.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
+import { renderHowToUse } from "./how-to-use.js";
 import { renderPricing } from "./pricing.js";
 import { renderPrivacyPolicy } from "./privacy-policy.js";
 import { renderSetupGuide } from "./setup-guide.js";
@@ -146,6 +147,10 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
 
   app.get("/docs/setup", (_req, res) => {
     res.status(200).type("html").send(renderSetupGuide(`${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/install`));
+  });
+
+  app.get("/docs/how-to-use", (_req, res) => {
+    res.status(200).type("html").send(renderHowToUse());
   });
 
   app.get("/docs/shared-data", (_req, res) => {

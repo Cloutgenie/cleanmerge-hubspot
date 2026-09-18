@@ -129,7 +129,7 @@ export function renderPrivacyPolicy(): string {
 <h2>Changes to this policy</h2>
 <p>If we change what data we collect or how we use it, we will update this page and revise the effective date above.</p>
 
-<footer>CleanMerge &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/terms">Terms of Service</a> &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a></footer>
+<footer>CleanMerge &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/terms">Terms of Service</a> &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a></footer>
 </body>
 </html>`;
 }

@@ -155,7 +155,7 @@ export function renderPricing(installUrl: string): string {
 <strong>No surprise charges:</strong> per our <a href="/docs/terms">Terms of Service</a>, nothing above the Free plan is billed automatically — Warehouse Sync starts with a conversation, and any pricing we quote is confirmed before setup begins.
 </div>
 
-<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
+<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
 </body>
 </html>`;
 }

@@ -166,7 +166,7 @@ export function renderSetupGuide(installUrl: string): string {
 <h2>Uninstall the app</h2>
 <p>Removing a connected app in HubSpot (above) also uninstalls it. For general guidance on managing or removing connected apps, see HubSpot's <a href="https://knowledge.hubspot.com/integrations/manage-your-connected-apps" target="_blank" rel="noopener">Manage your connected apps</a> article.</p>
 
-<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
+<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/pricing">Pricing</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
 </body>
 </html>`;
 }
