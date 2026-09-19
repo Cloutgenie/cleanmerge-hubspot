@@ -118,7 +118,7 @@ export function renderPricing(installUrl: string): string {
 <body>
 
 <h1>Pricing</h1>
-<p class="lede">CleanMerge keeps HubSpot in sync with the rest of your stack — starting with a free CRM-cleanup action, up to fully-managed warehouse sync with duplicate protection built in.</p>
+<p class="lede">We handle CRM dedup for you — no data team required. Start free with a CRM-cleanup workflow action; move to Warehouse Sync when you need your warehouse and HubSpot to stay in step without creating duplicates.</p>
 
 <div class="plans">
   <div class="plan featured">

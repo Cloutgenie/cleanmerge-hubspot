@@ -104,7 +104,7 @@ export function renderSetupGuide(installUrl: string): string {
 <body>
 
 <h1>Setup guide for CleanMerge</h1>
-<p class="lede">CleanMerge keeps HubSpot in sync with the rest of your stack. The flagship offering is <strong>Warehouse Sync</strong> — pulling data from your warehouse into HubSpot Contacts and Companies without creating duplicates, using the same fuzzy/AI matching described on our <a href="/docs/pricing">pricing page</a>. This guide covers the free piece anyone can install today: a workflow action that normalizes CRM field values &mdash; names, phone numbers, and domains &mdash; directly inside your existing workflows.</p>
+<p class="lede">We handle CRM dedup for you — no data team required. The flagship offering is <strong>Warehouse Sync</strong> — pulling data from your warehouse into HubSpot Contacts and Companies without creating duplicates, using the same fuzzy/AI matching described on our <a href="/docs/pricing">pricing page</a>. This guide covers the free piece anyone can install today: a workflow action that normalizes CRM field values &mdash; names, phone numbers, and domains &mdash; directly inside your existing workflows.</p>
 <ul>
   <li>Automatically title-case contact and company names as part of a lead-routing or import workflow.</li>
   <li>Extract a clean root domain from a website URL for company matching or segmentation.</li>

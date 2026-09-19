@@ -127,6 +127,30 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
     }
   });
 
+  // Activation funnel for the free workflow action: install -> first run -> real usage -> hits
+  // the free-tier cap. There's no "converted to Warehouse Sync" stage yet since that's still an
+  // email-arranged, unbilled process with no system of record.
+  app.get("/internal/admin/funnel", async (req, res) => {
+    if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (!activityStore) { res.status(200).json({ error: "No activity store configured" }); return; }
+    try {
+      const installs = await tokenStore.listInstalls();
+      const installedPortalIds = new Set(installs.map((i) => i.portalId));
+      const runCounts = (await activityStore.countAllTimeByPortal()).filter((r) => installedPortalIds.has(r.portalId));
+      const everRan = runCounts.filter((r) => r.totalRuns >= 1).length;
+      const ran10Plus = runCounts.filter((r) => r.totalRuns >= 10).length;
+      const monthlyCounts = await Promise.all(installs.map(async (i) => ({ portalId: i.portalId, thisMonth: await activityStore.countThisMonth(i.portalId) })));
+      const hitFreeCap = monthlyCounts.filter((m) => m.thisMonth >= 50).length;
+      res.status(200).json({
+        stages: { installed: installs.length, everRan, ran10Plus, hitFreeCap },
+        byPortal: runCounts,
+      });
+    } catch (error) {
+      console.error("Funnel query failed", error instanceof Error ? error.message : error);
+      res.status(502).json({ error: "Funnel query failed" });
+    }
+  });
+
   if (pairingStore) {
     // Public by design (no admin token) — the pairing code itself, minted only at the end of a real
     // OAuth install, is the credential. Single-use and 15-minute expiry (enforced in pairing-store.ts)

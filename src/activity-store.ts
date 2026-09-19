@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { createPool } from "./db.js";
 
 export interface ActivePortal { portalId: number; lastActivityAt: string }
+export interface PortalRunCount { portalId: number; totalRuns: number }
 
 export interface ActivityStore {
   initialize(): Promise<void>;
@@ -11,6 +12,8 @@ export interface ActivityStore {
   listActiveSince(days: number): Promise<ActivePortal[]>;
   /** Executions recorded for a portal since the start of the current calendar month (UTC). */
   countThisMonth(portalId: number): Promise<number>;
+  /** Lifetime run count per portal that has ever recorded an execution. */
+  countAllTimeByPortal(): Promise<PortalRunCount[]>;
 }
 
 export class PostgresActivityStore implements ActivityStore {
@@ -46,6 +49,12 @@ export class PostgresActivityStore implements ActivityStore {
     );
     return Number(result.rows[0]?.count ?? 0);
   }
+  async countAllTimeByPortal(): Promise<PortalRunCount[]> {
+    const result = await this.pool.query<{ portal_id: string; count: string }>(
+      "SELECT portal_id, COUNT(*) AS count FROM action_activity GROUP BY portal_id ORDER BY count DESC",
+    );
+    return result.rows.map((r) => ({ portalId: Number(r.portal_id), totalRuns: Number(r.count) }));
+  }
 }
 
 export class MemoryActivityStore implements ActivityStore {
@@ -70,5 +79,10 @@ export class MemoryActivityStore implements ActivityStore {
     const now = new Date();
     const startOfMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
     return this.events.filter((e) => e.portalId === portalId && e.executedAt >= startOfMonth).length;
+  }
+  async countAllTimeByPortal(): Promise<PortalRunCount[]> {
+    const totals = new Map<number, number>();
+    for (const event of this.events) totals.set(event.portalId, (totals.get(event.portalId) ?? 0) + 1);
+    return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([portalId, totalRuns]) => ({ portalId, totalRuns }));
   }
 }
