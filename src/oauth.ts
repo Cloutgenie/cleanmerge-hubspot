@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
 import type { Config } from "./config.js";
+import { renderInstallSuccess } from "./install-success.js";
 import type { PairingStore } from "./pairing-store.js";
 import { generatePairingCode, pairingCodeExpiry } from "./session.js";
 import type { TokenStore } from "./token-store.js";
@@ -79,7 +80,7 @@ export function oauthHandlers(config: Config, store: TokenStore, pairingStore?: 
           const pairingCode = generatePairingCode();
           await pairingStore.create(pairingCode, tokens.hubId, pairingCodeExpiry());
         }
-        res.status(200).type("html").send(`<!doctype html><title>CleanMerge installed</title><h1>CleanMerge is connected.</h1><p>You may close this window.</p>`);
+        res.status(200).type("html").send(renderInstallSuccess(`https://app.hubspot.com/workflows/${tokens.hubId}`));
       } catch (error) {
         console.error("OAuth callback failed", error instanceof Error ? error.message : error);
         res.status(502).json({ error: "Could not complete HubSpot OAuth" });
