@@ -21,6 +21,7 @@ import { oauthHandlers } from "./oauth.js";
 import type { PairingStore } from "./pairing-store.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
 import { renderHowToUse } from "./how-to-use.js";
+import { renderLanding } from "./landing.js";
 import { renderPricing } from "./pricing.js";
 import { renderPrivacyPolicy } from "./privacy-policy.js";
 import { renderSetupGuide } from "./setup-guide.js";
@@ -101,6 +102,9 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   app.use(express.json({ limit: "256kb", verify: (req, _res, buffer) => { (req as RawBodyRequest).rawBody = Buffer.from(buffer); } }));
 
   const oauth = oauthHandlers(config, tokenStore, pairingStore);
+  app.get("/", (_req, res) => {
+    res.status(200).type("html").send(renderLanding("/oauth/install"));
+  });
   app.get("/oauth/install", oauth.install);
   app.get("/oauth/callback", oauth.callback);
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
