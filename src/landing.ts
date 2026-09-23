@@ -1,3 +1,5 @@
+import { softwareApplicationJsonLdScript } from "./agent-surface.js";
+
 /**
  * Root landing page — the actual front door now that cleanmerge.jaduno.com exists as a proper
  * domain rather than just an API host. Same design system as the /docs/* pages (dark theme, Karla +
@@ -129,6 +131,7 @@ export function renderLanding(installUrl: string): string {
   footer a { color: var(--text-muted); margin-right: 1.25rem; text-decoration: none; }
   footer a:hover { color: var(--accent); }
 </style>
+${softwareApplicationJsonLdScript}
 </head>
 <body>
 
@@ -216,7 +219,7 @@ export function renderLanding(installUrl: string): string {
       <a href="/docs/privacy">Privacy Policy</a>
       <a href="/docs/terms">Terms of Service</a>
     </div>
-    CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com" style="margin:0;">jay@kinetify.com</a>
+    CleanMerge &middot; Questions? <a href="mailto:jay@vain.agency" style="margin:0;">jay@vain.agency</a>
   </div>
 </footer>
 </body>
