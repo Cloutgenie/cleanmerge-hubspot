@@ -1,3 +1,5 @@
+import { softwareApplicationJsonLdScript } from "./agent-surface.js";
+
 /**
  * Public pricing page, required for HubSpot Marketplace listing submission.
  * Warehouse Sync is white-glove/managed today (config happens via internal admin endpoints,
@@ -114,6 +116,7 @@ export function renderPricing(installUrl: string): string {
   a { color: var(--accent); }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.85rem; }
 </style>
+${softwareApplicationJsonLdScript}
 </head>
 <body>
 
@@ -155,7 +158,7 @@ export function renderPricing(installUrl: string): string {
 <strong>Quote first, then pay.</strong> Warehouse Sync starts with a short <a href="/docs/quote">quote request</a>: we scope your connection, send a written quote, and only once you've confirmed it do we email you a secure payment link. Setup begins after payment. Nothing is ever billed automatically through the app — see our <a href="/docs/terms">Terms of Service</a>.
 </div>
 
-<footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
+<footer>CleanMerge &middot; Questions? <a href="mailto:jay@vain.agency">jay@vain.agency</a> &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>
 </body>
 </html>`;
 }

@@ -20,6 +20,7 @@ import type { FieldMappingEntry, IngestStore, ObjectType, WarehouseConnectionRow
 import { oauthHandlers } from "./oauth.js";
 import type { PairingStore } from "./pairing-store.js";
 import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
+import { LLMS_TXT, ROBOTS_TXT, SITEMAP_XML, softwareApplicationJsonLdCspSource } from "./agent-surface.js";
 import { renderHowToUse } from "./how-to-use.js";
 import { renderLanding } from "./landing.js";
 import { renderPricing } from "./pricing.js";
@@ -101,7 +102,14 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        // Allow the inline SoftwareApplication JSON-LD block. Hash is of that script body only.
+        "script-src": ["'self'", softwareApplicationJsonLdCspSource],
+      },
+    },
+  }));
   app.use(express.json({ limit: "256kb", verify: (req, _res, buffer) => { (req as RawBodyRequest).rawBody = Buffer.from(buffer); } }));
 
   const oauth = oauthHandlers(config, tokenStore, pairingStore);
@@ -175,6 +183,19 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
       }
     });
   }
+
+  app.get("/llms.txt", (_req, res) => {
+    res.status(200).type("text/plain; charset=utf-8").send(LLMS_TXT);
+  });
+  app.get("/robots.txt", (_req, res) => {
+    res.status(200).type("text/plain; charset=utf-8").send(ROBOTS_TXT);
+  });
+  app.get("/sitemap.xml", (_req, res) => {
+    res.status(200).type("application/xml; charset=utf-8").send(SITEMAP_XML);
+  });
+  app.get("/pricing", (_req, res) => {
+    res.redirect(302, "/docs/pricing");
+  });
 
   app.get("/docs/setup", (_req, res) => {
     res.status(200).type("html").send(renderSetupGuide(`${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/install`));
