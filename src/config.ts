@@ -13,6 +13,9 @@ const schema = z.object({
   DATABASE_URL: z.string().url().optional(),
   INTERNAL_ADMIN_TOKEN: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  QUOTE_NOTIFY_TO: z.string().email().optional(),
+  QUOTE_NOTIFY_FROM: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -8,6 +8,8 @@ import { judgeCandidate } from "./dedup/ai-judgment.js";
 import { DedupStore } from "./dedup/store.js";
 import { IngestStore } from "./ingest/store.js";
 import { MemoryPairingStore, PostgresPairingStore } from "./pairing-store.js";
+import { createResendNotifier } from "./quote-notifier.js";
+import { MemoryQuoteStore, PostgresQuoteStore, type QuoteStore } from "./quote-store.js";
 import { OAuthTokenManager } from "./token-manager.js";
 import { MemoryTokenStore, PostgresTokenStore } from "./token-store.js";
 
@@ -51,7 +53,15 @@ if (config.DATABASE_URL) {
 const activityStore: ActivityStore = config.DATABASE_URL ? new PostgresActivityStore(config.DATABASE_URL) : new MemoryActivityStore();
 await activityStore.initialize();
 
-const app: Express = createApp(config, tokenStore, dedup, ingest, contactGate, pairingStore, activityStore);
+const quoteStore: QuoteStore = config.DATABASE_URL ? new PostgresQuoteStore(config.DATABASE_URL) : new MemoryQuoteStore();
+await quoteStore.initialize();
+
+const notifyQuote = config.RESEND_API_KEY && config.QUOTE_NOTIFY_FROM
+  ? createResendNotifier({ apiKey: config.RESEND_API_KEY, to: config.QUOTE_NOTIFY_TO ?? "jay@vain.agency", from: config.QUOTE_NOTIFY_FROM })
+  : undefined;
+if (!notifyQuote) console.warn("Quote email notifications are off (set RESEND_API_KEY and QUOTE_NOTIFY_FROM to enable)");
+
+const app: Express = createApp(config, tokenStore, dedup, ingest, contactGate, pairingStore, activityStore, quoteStore, notifyQuote);
 
 if (process.env.VERCEL !== "1") {
   app.listen(config.PORT, () => console.log(`CleanMerge listening on port ${config.PORT}`));

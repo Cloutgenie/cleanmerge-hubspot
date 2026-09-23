@@ -133,7 +133,7 @@ export function renderPricing(installUrl: string): string {
       <li>Run on your schedule — hourly to weekly.</li>
       <li>White-glove setup: we configure the connection and mappings with you. There's no self-serve UI for this yet, so pricing reflects real setup and monitoring, not a flip-a-switch SaaS tier.</li>
     </ul>
-    <div><a class="contact-btn" href="mailto:jay@kinetify.com?subject=CleanMerge%20Warehouse%20Sync">Talk to us about Warehouse Sync</a></div>
+    <div><a class="contact-btn" href="/docs/quote">Request a quote</a></div>
   </div>
 
   <div class="plan">
@@ -152,7 +152,7 @@ export function renderPricing(installUrl: string): string {
 <p>General-purpose warehouse-sync tools (Census, Hightouch, and similar) are built for data teams and typically start in the $350&ndash;800+/mo range before you've synced a single duplicate-free record — they move your data as-is and leave deduplication to you. Warehouse Sync is scoped specifically to HubSpot, includes the duplicate-matching step by default, and is priced for teams who want clean data in HubSpot without standing up a full data-infrastructure tool.</p>
 
 <div class="callout">
-<strong>No surprise charges:</strong> per our <a href="/docs/terms">Terms of Service</a>, nothing above the Free plan is billed automatically — Warehouse Sync starts with a conversation, and any pricing we quote is confirmed before setup begins.
+<strong>Quote first, then pay.</strong> Warehouse Sync starts with a short <a href="/docs/quote">quote request</a>: we scope your connection, send a written quote, and only once you've confirmed it do we email you a secure payment link. Setup begins after payment. Nothing is ever billed automatically through the app — see our <a href="/docs/terms">Terms of Service</a>.
 </div>
 
 <footer>CleanMerge &middot; Questions? <a href="mailto:jay@kinetify.com">jay@kinetify.com</a> &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>

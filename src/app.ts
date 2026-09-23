@@ -23,6 +23,9 @@ import { verifyHubSpotSignature, type RawBodyRequest } from "./signature.js";
 import { renderHowToUse } from "./how-to-use.js";
 import { renderLanding } from "./landing.js";
 import { renderPricing } from "./pricing.js";
+import { normalizeQuoteBody, quoteSchema, renderQuoteForm, renderQuoteThanks } from "./quote-form.js";
+import type { QuoteNotifier } from "./quote-notifier.js";
+import { MemoryQuoteStore, type QuoteStore } from "./quote-store.js";
 import { renderPrivacyPolicy } from "./privacy-policy.js";
 import { renderSetupGuide } from "./setup-guide.js";
 import { renderSharedDataGuide } from "./shared-data-guide.js";
@@ -94,7 +97,7 @@ const executionSchema = z.object({
   }),
 }).passthrough();
 
-export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps, pairingStore?: PairingStore, activityStore?: ActivityStore): Express {
+export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupDeps, ingest?: IngestDeps, contactGate?: ContactGateDeps, pairingStore?: PairingStore, activityStore?: ActivityStore, quoteStore: QuoteStore = new MemoryQuoteStore(), notifyQuote?: QuoteNotifier): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -187,6 +190,59 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
 
   app.get("/docs/pricing", (_req, res) => {
     res.status(200).type("html").send(renderPricing(`${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/oauth/install`));
+  });
+
+  app.get("/docs/quote", (_req, res) => {
+    res.status(200).type("html").send(renderQuoteForm());
+  });
+
+  // Public, unauthenticated by design: a honeypot field plus a small per-IP cap keep it from
+  // being used to flood the quote inbox.
+  const quoteHits = new Map<string, number[]>();
+  app.post("/docs/quote", express.urlencoded({ extended: false, limit: "32kb" }), async (req, res) => {
+    const now = Date.now();
+    const recent = (quoteHits.get(req.ip ?? "unknown") ?? []).filter((t) => now - t < 60 * 60_000);
+    if (recent.length >= 5) { res.status(429).type("text").send("Too many requests. Please email jay@kinetify.com."); return; }
+    quoteHits.set(req.ip ?? "unknown", [...recent, now]);
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof body.website === "string" && body.website.trim() !== "") { res.redirect(303, "/docs/quote/thanks"); return; }
+
+    const parsed = quoteSchema.safeParse(normalizeQuoteBody(body));
+    if (!parsed.success) {
+      const errors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) { const key = String(issue.path[0] ?? "form"); if (!errors[key]) errors[key] = issue.message; }
+      res.status(400).type("html").send(renderQuoteForm(body as Record<string, string | string[]>, errors));
+      return;
+    }
+    try {
+      const saved = await quoteStore.create(parsed.data);
+      console.log("Quote request received", { id: saved.id });
+      // The request is already saved, so a failed email must not turn into an error for the visitor.
+      if (notifyQuote) {
+        try { await notifyQuote(saved); }
+        catch (error) { console.error("Quote notification failed", { id: saved.id, error: error instanceof Error ? error.message : error }); }
+      }
+      res.redirect(303, "/docs/quote/thanks");
+    } catch (error) {
+      console.error("Quote request failed", error instanceof Error ? error.message : error);
+      res.status(500).type("text").send("Something went wrong. Please email jay@kinetify.com.");
+    }
+  });
+
+  app.get("/docs/quote/thanks", (_req, res) => {
+    res.status(200).type("html").send(renderQuoteThanks());
+  });
+
+  app.get("/internal/admin/quote-requests", async (req, res) => {
+    if (!isAuthorizedAdmin(req, config.INTERNAL_ADMIN_TOKEN)) { res.status(401).json({ error: "Unauthorized" }); return; }
+    try {
+      const requests = await quoteStore.list(100);
+      res.status(200).json({ count: requests.length, requests });
+    } catch (error) {
+      console.error("List quote requests failed", error instanceof Error ? error.message : error);
+      res.status(502).json({ error: "List quote requests failed" });
+    }
   });
 
   app.get("/docs/privacy", (_req, res) => {

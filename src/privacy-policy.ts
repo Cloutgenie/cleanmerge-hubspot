@@ -109,6 +109,9 @@ export function renderPrivacyPolicy(): string {
 </table>
 <p>We do not sell your data, and we do not share it with any party not listed above.</p>
 
+<h2>Quote requests</h2>
+<p>If you submit the Warehouse Sync quote request form, we store the details you enter (name, work email, company, optional HubSpot account ID, and information about your data setup) so we can prepare and follow up on your quote. We use it only for that purpose and do not share it. You can ask us to delete it at any time by emailing <a href="mailto:jay@kinetify.com">jay@kinetify.com</a>.</p>
+
 <h2>Storage and security</h2>
 <ul>
   <li>OAuth tokens are encrypted at rest (AES-256-GCM) before being stored.</li>
