@@ -132,7 +132,7 @@ ${softwareApplicationJsonLdScript}
       <li>Pulls data from any SQL-queryable warehouse (Databricks, or anything with a similar REST/SQL interface) into HubSpot Contacts and Companies.</li>
       <li>Every incoming row is matched against your existing HubSpot records with fuzzy + AI-assisted matching before anything is written — no fresh duplicates from the sync itself.</li>
       <li>Confident matches update automatically; anything ambiguous is queued for a quick human approve/reject instead of guessing.</li>
-      <li>Field mapping, including creating new HubSpot properties when your warehouse has data HubSpot doesn't yet.</li>
+      <li>Field mapping from your warehouse columns to your HubSpot properties. We help you set up any properties that don't exist yet during onboarding.</li>
       <li>Run on your schedule — hourly to weekly.</li>
       <li>White-glove setup: we configure the connection and mappings with you. There's no self-serve UI for this yet, so pricing reflects real setup and monitoring, not a flip-a-switch SaaS tier.</li>
     </ul>

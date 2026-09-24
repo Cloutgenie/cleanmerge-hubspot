@@ -71,7 +71,7 @@ Admin-gated endpoints (`Authorization: Bearer $INTERNAL_ADMIN_TOKEN`, same patte
 - `POST /internal/contact-gate/seed-allowlist` — bulk-seeds the allowlist from existing Company domains plus HubSpot Owner emails (the spec's "staff pack").
 - `GET /internal/contact-gate/audit?portalId=` — every promote/discard/allowlist/policy-change, logged.
 
-Requires the `conversations.read` and `crm.objects.owners.read` scopes, both added as `optionalScopes` in `app-hsmeta.json` (not `requiredScopes`) — ordinary free-tier installers aren't forced through a bigger consent screen for a feature they're not using. Set `HUBSPOT_OPTIONAL_SCOPES` (space/comma-separated) before walking a specific Contact Gate customer through `/oauth/install` so their reauthorization actually requests them.
+**Scopes removed (HubSpot Marketplace review, Sept 2026):** `conversations.read` and `crm.objects.owners.read` are no longer requested, because HubSpot's logs showed them unused for 30+ days and the reviewer asked for their removal. Contact Gate stays dormant. `seed-allowlist` still seeds Company domains but now skips owner emails when the owners call is refused. To bring the feature back, add both scopes to `optionalScopes` in `app-hsmeta.json`, upload a new app version, and set `HUBSPOT_OPTIONAL_SCOPES`. Likewise, `crm.schemas.contacts.write` and `crm.schemas.companies.write` were removed, so Warehouse Sync no longer auto-creates custom properties: create them in the client's HubSpot during onboarding.
 
 ## Response behavior
 

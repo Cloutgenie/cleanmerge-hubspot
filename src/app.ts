@@ -504,7 +504,10 @@ export function createApp(config: Config, tokenStore: TokenStore, dedup?: DedupD
         const accessToken = await contactGate.tokenManager.getAccessToken(portalId);
         const [companies, owners] = await Promise.all([
           listAllObjects(accessToken, "companies", ["domain"]),
-          listOwners(accessToken),
+          listOwners(accessToken).catch((error) => {
+            console.warn("Skipping owner emails in allowlist seed", error instanceof Error ? error.message : error);
+            return [];
+          }),
         ]);
         const domains = companies.map((c) => c.properties.domain).filter((d): d is string => !!d);
         const emails = owners.map((o) => o.email);

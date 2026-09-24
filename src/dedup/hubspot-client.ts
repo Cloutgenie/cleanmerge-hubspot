@@ -67,6 +67,9 @@ export async function ensurePropertyExists(
     headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
     body: JSON.stringify({ name: propertyName, label, type: "string", fieldType: "text", groupName: `${objectType}information` }),
   });
+  if (createResponse.status === 403) {
+    throw new Error(`HubSpot property ${objectType}/${propertyName} does not exist and CleanMerge no longer has schema-write access; create it in HubSpot first`);
+  }
   if (!createResponse.ok && createResponse.status !== 409) {
     throw new Error(`HubSpot create property ${objectType}/${propertyName} failed (${createResponse.status}): ${await createResponse.text()}`);
   }

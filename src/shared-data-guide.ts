@@ -46,37 +46,26 @@ export function renderSharedDataGuide(): string {
 <p class="lede">Reference content for the "Shared Data" section of the HubSpot Marketplace listing — describes exactly how CleanMerge's requested OAuth scopes are currently used. This is written to be accurate as of today's build, not aspirational.</p>
 
 <div class="callout">
-<strong>Write scopes are back, and still not installer-facing.</strong> CleanMerge now requests write access to Companies and Contacts again (plus schema-write, for creating custom properties) to support two capabilities: the merge executor (finds and merges duplicate records) and a new warehouse-ingest pipeline (creates/updates records from a customer-configured data-lake query). Both remain reachable only via internal admin endpoints, configured per customer by CleanMerge's operator — not self-serve for installers. The scopes are requested because these capabilities are real, deployed, and actively used (just not yet installer-triggered), not held speculatively.
+<strong>Write scopes are back, and still not installer-facing.</strong> CleanMerge now requests write access to Companies and Contacts again to support two capabilities: the merge executor (finds and merges duplicate records) and a new warehouse-ingest pipeline (creates/updates records from a customer-configured data-lake query). Both remain reachable only via internal admin endpoints, configured per customer by CleanMerge's operator — not self-serve for installers. The scopes are requested because these capabilities are real, deployed, and actively used (just not yet installer-triggered), not held speculatively.
 </div>
 
 <h2>Contacts</h2>
 <table>
-<tr><th>Scope requested</th><td><code>crm.objects.contacts.read</code>, <code>crm.objects.contacts.write</code>, <code>crm.schemas.contacts.write</code></td></tr>
+<tr><th>Scope requested</th><td><code>crm.objects.contacts.read</code>, <code>crm.objects.contacts.write</code></td></tr>
 <tr><th>Direction</th><td><span class="badge badge-bidirectional">Bidirectional</span></td></tr>
-<tr><th>Fields</th><td><code>firstname</code>, <code>lastname</code>, <code>email</code>, <code>phone</code>, plus any warehouse-mapped custom properties</td></tr>
+<tr><th>Fields</th><td><code>firstname</code>, <code>lastname</code>, <code>email</code>, <code>phone</code>, plus any existing custom properties mapped during Warehouse Sync setup</td></tr>
 <tr><th>How it's actually used</th><td>
   The <strong>CleanMerge: Normalize CRM Data</strong> workflow action does not call HubSpot's CRM API at all — HubSpot's own workflow engine passes the selected property's value into the action and writes the returned value back to whichever property the workflow is configured to update. CleanMerge never reads or writes a Contact record directly for this feature.<br><br>
-  The read/write scopes support two internal-admin capabilities: the duplicate-detection and merge engine (reads Contacts to find likely duplicates; on a human-approved or high-confidence match, normalizes and merges via HubSpot's Merge API), and the warehouse-ingest pipeline (reads Contacts to match incoming warehouse rows against existing records; creates a new Contact or updates a matched one, and can create a custom property via the schema-write scope if a mapping calls for a field that doesn't exist yet).
+  The read/write scopes support two internal-admin capabilities: the duplicate-detection and merge engine (reads Contacts to find likely duplicates; on a human-approved or high-confidence match, normalizes and merges via HubSpot's Merge API), and the warehouse-ingest pipeline (reads Contacts to match incoming warehouse rows against existing records; creates a new Contact or updates a matched one; mapped properties must already exist in the customer's HubSpot, since CleanMerge does not create properties).
 </td></tr>
 </table>
 
 <h2>Companies</h2>
 <table>
-<tr><th>Scope requested</th><td><code>crm.objects.companies.read</code>, <code>crm.objects.companies.write</code>, <code>crm.schemas.companies.write</code></td></tr>
+<tr><th>Scope requested</th><td><code>crm.objects.companies.read</code>, <code>crm.objects.companies.write</code></td></tr>
 <tr><th>Direction</th><td><span class="badge badge-bidirectional">Bidirectional</span></td></tr>
-<tr><th>Fields</th><td><code>name</code>, <code>domain</code>, <code>phone</code>, plus any warehouse-mapped custom properties</td></tr>
+<tr><th>Fields</th><td><code>name</code>, <code>domain</code>, <code>phone</code>, plus any existing custom properties mapped during Warehouse Sync setup</td></tr>
 <tr><th>How it's actually used</th><td>Same as Contacts above — the workflow action doesn't touch Company records directly; read/write is used by the merge engine and the warehouse-ingest pipeline.</td></tr>
-</table>
-
-<h2>Conversations &amp; Owners (optional scopes)</h2>
-<table>
-<tr><th>Scope requested</th><td><code>conversations.read</code>, <code>crm.objects.owners.read</code> &mdash; requested as <strong>optional</strong> scopes, not required for every installer</td></tr>
-<tr><th>Direction</th><td><span class="badge badge-bidirectional">Read only</span></td></tr>
-<tr><th>Fields</th><td>A created Contact's <code>hs_object_source_label</code> (to tell whether it came from Conversations); HubSpot Owner id/email</td></tr>
-<tr><th>How it's actually used</th><td>
-  Supports Contact Gate: a reverse-quarantine tool for Contacts HubSpot auto-creates from unknown Conversations/Help Desk senders. On a <code>contact.creation</code> webhook, CleanMerge checks the new Contact's source label &mdash; if it's Conversations and the portal's policy says to quarantine it, the Contact is archived within seconds and held in a review queue for a human to promote or discard, rather than staying in the CRM. Every portal defaults to a dry-run mode (log the decision, never delete) until manually confirmed safe for that account. Owners are only used to bulk-seed an allowlist of staff email addresses, on request.<br><br>
-  Kept optional rather than required because most installers only use the free workflow action and never touch Contact Gate &mdash; this scope is only requested when walking a specific customer through setup for this feature, not from every installer by default.
-</td></tr>
 </table>
 
 <h2>If/when this becomes installer-facing</h2>
