@@ -84,7 +84,7 @@ export function renderQuoteForm(values: QuoteFormValues = {}, errors: Record<str
   const selectedObjects = Array.isArray(values.objects) ? values.objects : [];
   return `${head("Request a Warehouse Sync quote")}
 <h1>Request a Warehouse Sync quote</h1>
-<p class="lede">Tell us a little about your setup and we will reply with a written quote, usually within one business day. Submitting this form does not commit you to anything and you will not be charged.</p>
+<p class="lede">Tell us a little about your setup and we will reply with a written quote, usually within one business day. Plans start at $299 a month per connection, based on how many rows you sync, plus a one-time setup fee. Your quote shows the exact amounts. Submitting this form does not commit you to anything and you will not be charged.</p>
 ${Object.keys(errors).length ? `<div class="banner" role="alert">Please fix the highlighted fields and submit again.</div>` : ""}
 <form method="post" action="/docs/quote">
   <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>

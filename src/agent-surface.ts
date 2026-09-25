@@ -12,7 +12,7 @@ export const LLMS_TXT = `# CleanMerge (Jaduno)
 
 ## Offers
 - Normalize CRM Data (free): $0 forever · up to 50 runs/month · no card. Proper case, domain extract, E.164 phone, name split. Pass-through; no CRM copy held.
-- Warehouse Sync (paid): from about $299/month per connection. Warehouse → HubSpot with fuzzy + AI dedup and human review queue.
+- Warehouse Sync (paid): from about $299/month per connection (volume based: about $299 up to 100,000 rows, $599 up to 1 million, quoted above) plus a one-time setup fee from $750. Warehouse → HubSpot with fuzzy + AI dedup and human review queue.
 
 ## How to start
 1. Install free Normalize: https://cleanmerge.jaduno.com/oauth/install
@@ -53,7 +53,7 @@ export const SOFTWARE_APPLICATION_JSON_LD = `{
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "url": "https://cleanmerge.jaduno.com",
-  "description": "HubSpot CRM normalize and dedup. Free Normalize CRM Data workflow action (50 runs/month). Warehouse Sync with fuzzy and AI matching from about $299/month per connection.",
+  "description": "HubSpot CRM normalize and dedup. Free Normalize CRM Data workflow action (50 runs/month). Warehouse Sync with fuzzy and AI matching from about $299/month per connection (volume based: about $299 up to 100,000 rows, $599 up to 1 million, quoted above) plus a one-time setup fee from $750.",
   "offers": [
     {"@type":"Offer","name":"Normalize CRM Data","price":"0","priceCurrency":"USD","description":"Up to 50 runs per month. Pass-through transforms; no CRM copy held."},
     {"@type":"Offer","name":"Warehouse Sync","price":"299","priceCurrency":"USD","description":"Managed warehouse to HubSpot sync with duplicate protection. Per connection. Confirm current price on cleanmerge.jaduno.com."}

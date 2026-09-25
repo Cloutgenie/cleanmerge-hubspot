@@ -86,6 +86,10 @@ export function renderPricing(installUrl: string): string {
     margin: 0.4rem 0 1rem;
   }
   .plan-price span { font-size: 0.95rem; color: var(--text-muted); font-family: "Karla", sans-serif; }
+  .tiers { margin: 0 0 0.5rem; font-size: 0.92rem; border-top: 1px solid var(--border); }
+  .tiers div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
+  .tiers span { color: var(--text-muted); }
+  .tiers .setup strong { color: #6fd3a1; text-align: right; }
   .plan ul { padding-left: 1.2rem; margin: 0.75rem 0 0; flex: 1; }
   .plan li { margin: 0.4rem 0; font-size: 0.94rem; }
   .callout {
@@ -128,6 +132,12 @@ ${softwareApplicationJsonLdScript}
     <div class="plan-eyebrow">Most popular</div>
     <div class="plan-name">Warehouse Sync</div>
     <div class="plan-price">From $299 <span>/ mo, per connection</span></div>
+    <div class="tiers">
+      <div><span>Up to about 100,000 rows</span><strong>$299 / mo</strong></div>
+      <div><span>Up to about 1 million rows</span><strong>$599 / mo</strong></div>
+      <div><span>Over 1 million rows</span><strong>Quoted</strong></div>
+      <div class="setup"><span>One-time setup fee</span><strong>From $750, shown in your quote</strong></div>
+    </div>
     <ul>
       <li>Pulls data from any SQL-queryable warehouse (Databricks, or anything with a similar REST/SQL interface) into HubSpot Contacts and Companies.</li>
       <li>Every incoming row is matched against your existing HubSpot records with fuzzy + AI-assisted matching before anything is written — no fresh duplicates from the sync itself.</li>
@@ -155,7 +165,7 @@ ${softwareApplicationJsonLdScript}
 <p>General-purpose warehouse-sync tools (Census, Hightouch, and similar) are built for data teams and typically start in the $350&ndash;800+/mo range before you've synced a single duplicate-free record — they move your data as-is and leave deduplication to you. Warehouse Sync is scoped specifically to HubSpot, includes the duplicate-matching step by default, and is priced for teams who want clean data in HubSpot without standing up a full data-infrastructure tool.</p>
 
 <div class="callout">
-<strong>Quote first, then pay.</strong> Warehouse Sync starts with a short <a href="/docs/quote">quote request</a>: we scope your connection, send a written quote, and only once you've confirmed it do we email you a secure payment link. Setup begins after payment. Nothing is ever billed automatically through the app — see our <a href="/docs/terms">Terms of Service</a>.
+<strong>Quote first, then pay.</strong> Warehouse Sync starts with a short <a href="/docs/quote">quote request</a>: we scope your connection by data volume, send a written quote that includes any one-time setup fee, and only once you've confirmed it do we email you a secure payment link. Setup begins after payment. Nothing is ever billed automatically through the app — see our <a href="/docs/terms">Terms of Service</a>.
 </div>
 
 <footer>CleanMerge &middot; Questions? <a href="mailto:jay@vain.agency">jay@vain.agency</a> &middot; <a href="/docs/how-to-use">How to Use</a> &middot; <a href="/docs/privacy">Privacy Policy</a> &middot; <a href="/docs/terms">Terms of Service</a></footer>

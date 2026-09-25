@@ -50,7 +50,7 @@ High-confidence matches update the existing record automatically; ambiguous matc
 
 Cadence is not self-service in this version: for each customer, deploy a second Railway service from this repo with `startCommand: npm run ingest:scheduled` and a `cronSchedule`, with env vars `INGEST_TARGET_BASE_URL` (or reuse `SCAN_TARGET_BASE_URL`), `INTERNAL_ADMIN_TOKEN`, `INGEST_PORTAL_ID`, `INGEST_CONNECTION_ID` — mirrors how `scan:scheduled` is deployed today.
 
-Requires the same write scopes as the merge executor (`crm.objects.contacts.write`, `crm.objects.companies.write`) plus `crm.schemas.contacts.write` / `crm.schemas.companies.write` for mappings that create a custom property on first write.
+Requires the same write scopes as the merge executor (`crm.objects.contacts.write`, `crm.objects.companies.write`) Mapped custom properties must already exist in the customer's HubSpot: the schema-write scopes were removed in Sept 2026 and the app no longer creates properties.
 
 ## Contact Gate (internal, ops-configured) — reverse quarantine for Conversations-created contacts
 
